@@ -19,6 +19,10 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auth.Credentials;
+import com.google.cloud.gcs.analyticscore.client.namespace.FlatNamespaceStrategy;
+import com.google.cloud.gcs.analyticscore.client.namespace.HierarchicalNamespaceStrategy;
+import com.google.cloud.gcs.analyticscore.client.namespace.NamespaceStrategy;
+import com.google.cloud.gcs.analyticscore.common.BucketCapabilities;
 import com.google.cloud.gcs.analyticscore.common.GcsAnalyticsCoreTelemetryConstants;
 import com.google.cloud.gcs.analyticscore.common.telemetry.LoggingTelemetryOptions;
 import com.google.cloud.gcs.analyticscore.common.telemetry.LoggingTelemetryReporter;
@@ -36,6 +40,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -48,6 +53,11 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   private final Supplier<ExecutorService> executorServiceSupplier;
 
   private final Telemetry telemetry;
+
+  private final ConcurrentHashMap<String, BucketCapabilities> bucketCapabilityCache =
+      new ConcurrentHashMap<>();
+  private volatile FlatNamespaceStrategy flatStrategy;
+  private volatile HierarchicalNamespaceStrategy hnsStrategy;
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
@@ -95,6 +105,42 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
+    this.flatStrategy = new FlatNamespaceStrategy();
+    this.hnsStrategy = new HierarchicalNamespaceStrategy();
+  }
+
+  public NamespaceStrategy resolveStrategy(String bucketName) {
+    BucketCapabilities capabilities =
+        bucketCapabilityCache.computeIfAbsent(
+            bucketName,
+            name -> {
+              try {
+                return gcsClient.getBucketCapabilities(name);
+              } catch (IOException e) {
+                throw new RuntimeException("Failed to probe bucket capabilities for: " + name, e);
+              }
+            });
+
+    if (flatStrategy == null) {
+      synchronized (this) {
+        if (flatStrategy == null) {
+          flatStrategy = new FlatNamespaceStrategy();
+        }
+      }
+    }
+
+    if (hnsStrategy == null) {
+      synchronized (this) {
+        if (hnsStrategy == null) {
+          hnsStrategy = new HierarchicalNamespaceStrategy();
+        }
+      }
+    }
+
+    if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsOptimizationEnabled()) {
+      return hnsStrategy;
+    }
+    return flatStrategy;
   }
 
   @Override
@@ -124,6 +170,55 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   @Override
   public GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException {
+    GcsItemInfo gcsItemInfo = gcsClient.getGcsItemInfo(itemId);
+    return GcsFileInfo.builder()
+        .setItemInfo(gcsItemInfo)
+        .setUri(
+            URI.create(
+                BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()).toGsUtilUri()))
+        .setAttributes(Collections.emptyMap())
+        .build();
+  }
+
+  @Override
+  public GcsItemInfo getFileInfo(
+      GcsItemId itemId, com.google.cloud.gcs.analyticscore.common.PathType pathType)
+      throws IOException {
+    return resolveStrategy(itemId.getBucketName()).getFileInfo(itemId, pathType);
+  }
+
+  @Override
+  public void mkdirs(GcsItemId id) throws IOException {
+    resolveStrategy(id.getBucketName()).mkdirs(id);
+  }
+
+  @Override
+  public void delete(GcsItemId id, boolean recursive) throws IOException {
+    resolveStrategy(id.getBucketName()).delete(id, recursive);
+  }
+
+  @Override
+  public void rename(GcsItemId src, GcsItemId dst) throws IOException {
+    resolveStrategy(src.getBucketName()).rename(src, dst);
+  }
+
+  @Override
+  public byte[] getXAttr(GcsItemId id, String name) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void setXAttr(GcsItemId id, String name, byte[] value) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public java.util.Map<String, byte[]> getXAttrs(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  // Temporary duplicate so I can safely remove original block to avoid checkstyle or other errors.
+  public GcsFileInfo _getFileInfoOriginal(GcsItemId itemId) throws IOException {
     GcsItemInfo gcsItemInfo = gcsClient.getGcsItemInfo(itemId);
     return GcsFileInfo.builder()
         .setItemInfo(gcsItemInfo)

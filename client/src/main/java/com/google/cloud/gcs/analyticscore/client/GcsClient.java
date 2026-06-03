@@ -15,8 +15,11 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import com.google.cloud.gcs.analyticscore.common.BucketCapabilities;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 @VisibleForTesting
 public interface GcsClient {
@@ -30,6 +33,22 @@ public interface GcsClient {
 
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
+
+  void copyObject(GcsItemId src, GcsItemId dst) throws IOException;
+
+  void deleteObjects(List<GcsItemId> ids) throws IOException;
+
+  void updateObjectMetadata(GcsItemId id, Map<String, byte[]> metadata) throws IOException;
+
+  GcsItemInfo getFolderMetadata(GcsItemId id) throws IOException;
+
+  void createFolder(GcsItemId id) throws IOException;
+
+  void deleteFolder(GcsItemId id) throws IOException;
+
+  void renameFolder(GcsItemId src, GcsItemId dst) throws IOException;
+
+  BucketCapabilities getBucketCapabilities(String bucketName) throws IOException;
 
   /** Close the client. */
   void close();

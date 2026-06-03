@@ -15,10 +15,12 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import com.google.cloud.gcs.analyticscore.common.PathType;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 
 public interface GcsFileSystem extends AutoCloseable {
 
@@ -55,6 +57,20 @@ public interface GcsFileSystem extends AutoCloseable {
 
   /** Gets Metadata about the given gcs object represented by itemId. */
   GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException;
+
+  GcsItemInfo getFileInfo(GcsItemId itemId, PathType pathType) throws IOException;
+
+  void mkdirs(GcsItemId id) throws IOException;
+
+  void delete(GcsItemId id, boolean recursive) throws IOException;
+
+  void rename(GcsItemId src, GcsItemId dst) throws IOException;
+
+  byte[] getXAttr(GcsItemId id, String name) throws IOException;
+
+  void setXAttr(GcsItemId id, String name, byte[] value) throws IOException;
+
+  Map<String, byte[]> getXAttrs(GcsItemId id) throws IOException;
 
   /** Retrieve the options that were used to create this GcsFileSystem. */
   GcsFileSystemOptions getFileSystemOptions();
