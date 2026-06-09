@@ -25,8 +25,8 @@ public abstract class GcsFileSystemOptions {
 
   private static final String READ_THREAD_COUNT_KEY = "analytics-core.read.thread.count";
   private static final String CLIENT_TYPE_KEY = "client.type";
-  private static final String HNS_OPTIMIZATION_ENABLED_KEY =
-      "hierarchical.namespace.folders.optimization.enable";
+  private static final String HNS_API_ENABLED_KEY =
+      "analytics-core.hns.api.enable";
 
   /** Cloud Storage client to use. */
   public enum ClientType {
@@ -66,9 +66,9 @@ public abstract class GcsFileSystemOptions {
       optionsBuilder.setClientType(
           ClientType.valueOf(analyticsCoreOptions.get(prefix + CLIENT_TYPE_KEY)));
     }
-    if (analyticsCoreOptions.containsKey(prefix + HNS_OPTIMIZATION_ENABLED_KEY)) {
+    if (analyticsCoreOptions.containsKey(prefix + HNS_API_ENABLED_KEY)) {
       optionsBuilder.setHnsOptimizationEnabled(
-          Boolean.parseBoolean(analyticsCoreOptions.get(prefix + HNS_OPTIMIZATION_ENABLED_KEY)));
+          Boolean.parseBoolean(analyticsCoreOptions.get(prefix + HNS_API_ENABLED_KEY)));
     }
     optionsBuilder.setGcsClientOptions(
         GcsClientOptions.createFromOptions(analyticsCoreOptions, prefix));
