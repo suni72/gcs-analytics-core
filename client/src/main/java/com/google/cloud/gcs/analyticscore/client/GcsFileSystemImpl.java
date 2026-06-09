@@ -56,8 +56,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   private final ConcurrentHashMap<String, BucketCapabilities> bucketCapabilityCache =
       new ConcurrentHashMap<>();
-  private volatile FlatNamespaceStrategyImpl flatStrategy;
-  private volatile HierarchicalNamespaceStrategyImpl hnsStrategy;
+  private final FlatNamespaceStrategyImpl flatStrategy = new FlatNamespaceStrategyImpl();
+  private final HierarchicalNamespaceStrategyImpl hnsStrategy = new HierarchicalNamespaceStrategyImpl();
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
@@ -105,8 +105,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
-    this.flatStrategy = new FlatNamespaceStrategyImpl();
-    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl();
   }
 
   public NamespaceStrategy resolveStrategy(String bucketName) {
@@ -121,21 +119,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
               }
             });
 
-    if (flatStrategy == null) {
-      synchronized (this) {
-        if (flatStrategy == null) {
-          flatStrategy = new FlatNamespaceStrategyImpl();
-        }
-      }
-    }
-
-    if (hnsStrategy == null) {
-      synchronized (this) {
-        if (hnsStrategy == null) {
-          hnsStrategy = new HierarchicalNamespaceStrategyImpl();
-        }
-      }
-    }
 
     if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsOptimizationEnabled()) {
       return hnsStrategy;
