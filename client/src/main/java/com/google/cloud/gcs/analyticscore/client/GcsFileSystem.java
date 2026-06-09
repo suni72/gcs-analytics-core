@@ -68,6 +68,22 @@ public interface GcsFileSystem extends AutoCloseable {
   GcsItemInfo getFileInfo(GcsItemId itemId, PathType pathType) throws IOException;
 
   /**
+   * Lists the statuses of the files/directories in the given path.
+   *
+   * @param path The path we want to list.
+   * @return A list of GcsFileInfo.
+   */
+  java.util.List<GcsFileInfo> listStatus(URI path) throws IOException;
+
+  /**
+   * Lists the statuses of the files/directories in the given path.
+   *
+   * @param itemId The identifier of the given path.
+   * @return A list of GcsFileInfo.
+   */
+  java.util.List<GcsFileInfo> listStatus(GcsItemId itemId) throws IOException;
+
+  /**
    * Creates the directory named by the given identifier, including any necessary but nonexistent
    * parent directories.
    *

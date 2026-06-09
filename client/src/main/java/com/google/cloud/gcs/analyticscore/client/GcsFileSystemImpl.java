@@ -171,6 +171,32 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   }
 
   @Override
+  public java.util.List<GcsFileInfo> listStatus(URI path) throws IOException {
+    GcsItemId itemId = UriUtil.getItemIdFromString(path.toString());
+    return listStatus(itemId);
+  }
+
+  @Override
+  public java.util.List<GcsFileInfo> listStatus(GcsItemId itemId) throws IOException {
+    java.util.List<GcsItemInfo> itemInfos =
+        resolveStrategy(itemId.getBucketName()).listStatus(itemId);
+    return itemInfos.stream()
+        .map(
+            info ->
+                GcsFileInfo.builder()
+                    .setItemInfo(info)
+                    .setUri(
+                        URI.create(
+                            BlobId.of(
+                                    info.getItemId().getBucketName(),
+                                    info.getItemId().getObjectName().get())
+                                .toGsUtilUri()))
+                    .setAttributes(Collections.emptyMap())
+                    .build())
+        .collect(java.util.stream.Collectors.toList());
+  }
+
+  @Override
   public void mkdirs(GcsItemId id) throws IOException {
     resolveStrategy(id.getBucketName()).mkdirs(id);
   }

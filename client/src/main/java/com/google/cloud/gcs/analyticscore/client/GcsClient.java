@@ -34,6 +34,9 @@ public interface GcsClient {
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
 
+  /** Lists objects under the given directory. */
+  List<GcsItemInfo> listObjects(GcsItemId id) throws IOException;
+
   /** Deletes a batch of objects specified by their identifiers. */
   void deleteObjects(List<GcsItemId> ids) throws IOException;
 

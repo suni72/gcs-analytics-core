@@ -117,6 +117,11 @@ class GcsClientImpl implements GcsClient {
   }
 
   @Override
+  public List<GcsItemInfo> listObjects(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
   public void deleteObjects(List<GcsItemId> ids) throws IOException {
     throw new UnsupportedOperationException("Not implemented yet");
   }

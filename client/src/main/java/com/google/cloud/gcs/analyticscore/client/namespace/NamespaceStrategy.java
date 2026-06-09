@@ -13,4 +13,6 @@ public interface NamespaceStrategy {
   void delete(GcsItemId id, boolean recursive) throws IOException;
 
   void rename(GcsItemId src, GcsItemId dst) throws IOException;
+
+  java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException;
 }

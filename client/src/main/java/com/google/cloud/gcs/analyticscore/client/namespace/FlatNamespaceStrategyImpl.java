@@ -25,4 +25,9 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
   public void rename(GcsItemId src, GcsItemId dst) throws IOException {
     throw new UnsupportedOperationException("Not implemented yet");
   }
+
+  @Override
+  public java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }
