@@ -5,7 +5,7 @@ import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
 import com.google.cloud.gcs.analyticscore.common.PathType;
 import java.io.IOException;
 
-public class FlatNamespaceStrategy implements NamespaceStrategy {
+public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
   @Override
   public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
     throw new UnsupportedOperationException("Not implemented yet");

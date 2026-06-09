@@ -19,8 +19,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auth.Credentials;
-import com.google.cloud.gcs.analyticscore.client.namespace.FlatNamespaceStrategy;
-import com.google.cloud.gcs.analyticscore.client.namespace.HierarchicalNamespaceStrategy;
+import com.google.cloud.gcs.analyticscore.client.namespace.FlatNamespaceStrategyImpl;
+import com.google.cloud.gcs.analyticscore.client.namespace.HierarchicalNamespaceStrategyImpl;
 import com.google.cloud.gcs.analyticscore.client.namespace.NamespaceStrategy;
 import com.google.cloud.gcs.analyticscore.common.BucketCapabilities;
 import com.google.cloud.gcs.analyticscore.common.GcsAnalyticsCoreTelemetryConstants;
@@ -56,8 +56,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   private final ConcurrentHashMap<String, BucketCapabilities> bucketCapabilityCache =
       new ConcurrentHashMap<>();
-  private volatile FlatNamespaceStrategy flatStrategy;
-  private volatile HierarchicalNamespaceStrategy hnsStrategy;
+  private volatile FlatNamespaceStrategyImpl flatStrategy;
+  private volatile HierarchicalNamespaceStrategyImpl hnsStrategy;
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
@@ -105,8 +105,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
-    this.flatStrategy = new FlatNamespaceStrategy();
-    this.hnsStrategy = new HierarchicalNamespaceStrategy();
+    this.flatStrategy = new FlatNamespaceStrategyImpl();
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl();
   }
 
   public NamespaceStrategy resolveStrategy(String bucketName) {
@@ -124,7 +124,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     if (flatStrategy == null) {
       synchronized (this) {
         if (flatStrategy == null) {
-          flatStrategy = new FlatNamespaceStrategy();
+          flatStrategy = new FlatNamespaceStrategyImpl();
         }
       }
     }
@@ -132,7 +132,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     if (hnsStrategy == null) {
       synchronized (this) {
         if (hnsStrategy == null) {
-          hnsStrategy = new HierarchicalNamespaceStrategy();
+          hnsStrategy = new HierarchicalNamespaceStrategyImpl();
         }
       }
     }
