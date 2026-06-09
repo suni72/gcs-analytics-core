@@ -57,7 +57,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   private final ConcurrentHashMap<String, BucketCapabilities> bucketCapabilityCache =
       new ConcurrentHashMap<>();
   private final FlatNamespaceStrategyImpl flatStrategy = new FlatNamespaceStrategyImpl();
-  private final HierarchicalNamespaceStrategyImpl hnsStrategy = new HierarchicalNamespaceStrategyImpl();
+  private final HierarchicalNamespaceStrategyImpl hnsStrategy =
+      new HierarchicalNamespaceStrategyImpl();
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
@@ -118,7 +119,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                 throw new RuntimeException("Failed to probe bucket capabilities for: " + name, e);
               }
             });
-
 
     if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsOptimizationEnabled()) {
       return hnsStrategy;

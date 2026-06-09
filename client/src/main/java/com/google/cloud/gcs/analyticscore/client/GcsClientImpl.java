@@ -117,11 +117,6 @@ class GcsClientImpl implements GcsClient {
   }
 
   @Override
-  public void copyObject(GcsItemId src, GcsItemId dst) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
   public void deleteObjects(List<GcsItemId> ids) throws IOException {
     throw new UnsupportedOperationException("Not implemented yet");
   }
@@ -154,7 +149,6 @@ class GcsClientImpl implements GcsClient {
 
   @Override
   public BucketCapabilities getBucketCapabilities(String bucketName) throws IOException {
-    // Note: getSelfLink() is just an indicator for now, update with proper HNS capability check
     try {
       BucketInfo bucket =
           storage.get(
