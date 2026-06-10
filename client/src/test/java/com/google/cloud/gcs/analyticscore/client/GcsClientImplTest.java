@@ -41,7 +41,8 @@ class GcsClientImplTest {
   private static GcsClientOptions TEST_GCS_CLIENT_OPTIONS =
       GcsClientOptions.builder().setProjectId("test-project").build();
 
-  private final Storage storage = LocalStorageHelper.getOptions().getService();
+  private final Storage storage =
+      org.mockito.Mockito.spy(LocalStorageHelper.getOptions().getService());
   private final Supplier<ExecutorService> executorServiceSupplier =
       Suppliers.memoize(() -> Executors.newFixedThreadPool(30));
   private final Telemetry telemetry = new Telemetry(ImmutableList.of());
@@ -242,5 +243,100 @@ class GcsClientImplTest {
             executorServiceSupplier,
             telemetry);
     assertThat(client.storage.getOptions().getCredentials()).isEqualTo(NoCredentials.getInstance());
+  }
+
+  @Test
+  void getBucketCapabilities_hnsEnabled_returnsTrue() throws IOException {
+    BucketInfo.HierarchicalNamespace hns =
+        org.mockito.Mockito.mock(BucketInfo.HierarchicalNamespace.class);
+    org.mockito.Mockito.when(hns.getEnabled()).thenReturn(true);
+    Bucket mockBucket = org.mockito.Mockito.mock(Bucket.class);
+    org.mockito.Mockito.when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
+    org.mockito.Mockito.doReturn(mockBucket)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("hns-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    com.google.cloud.gcs.analyticscore.common.BucketCapabilities capabilities =
+        gcsClient.getBucketCapabilities("hns-bucket");
+    assertThat(capabilities.isHnsEnabled()).isTrue();
+  }
+
+  @Test
+  void getBucketCapabilities_hnsDisabled_returnsFalse() throws IOException {
+    BucketInfo.HierarchicalNamespace hns =
+        org.mockito.Mockito.mock(BucketInfo.HierarchicalNamespace.class);
+    org.mockito.Mockito.when(hns.getEnabled()).thenReturn(false);
+    Bucket mockBucket = org.mockito.Mockito.mock(Bucket.class);
+    org.mockito.Mockito.when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
+    org.mockito.Mockito.doReturn(mockBucket)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("flat-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    com.google.cloud.gcs.analyticscore.common.BucketCapabilities capabilities =
+        gcsClient.getBucketCapabilities("flat-bucket");
+    assertThat(capabilities.isHnsEnabled()).isFalse();
+  }
+
+  @Test
+  void getBucketCapabilities_hnsNull_returnsFalse() throws IOException {
+    Bucket mockBucket = org.mockito.Mockito.mock(Bucket.class);
+    org.mockito.Mockito.when(mockBucket.getHierarchicalNamespace()).thenReturn(null);
+    org.mockito.Mockito.doReturn(mockBucket)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("flat-bucket-null-hns"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    com.google.cloud.gcs.analyticscore.common.BucketCapabilities capabilities =
+        gcsClient.getBucketCapabilities("flat-bucket-null-hns");
+    assertThat(capabilities.isHnsEnabled()).isFalse();
+  }
+
+  @Test
+  void getBucketCapabilities_bucketNotFound_throwsIOException() {
+    org.mockito.Mockito.doReturn(null)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("non-existent-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    IOException e =
+        assertThrows(
+            IOException.class, () -> gcsClient.getBucketCapabilities("non-existent-bucket"));
+    assertThat(e).hasMessageThat().contains("Bucket not found: non-existent-bucket");
+  }
+
+  @Test
+  void getBucketCapabilities_storageException_throwsIOException() {
+    org.mockito.Mockito.doThrow(new StorageException(500, "Internal Error"))
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("error-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    IOException e =
+        assertThrows(IOException.class, () -> gcsClient.getBucketCapabilities("error-bucket"));
+    assertThat(e).hasMessageThat().contains("Unable to access bucket: error-bucket");
+  }
+
+  @Test
+  void unsupportedMethods_throwUnsupportedOperationException() {
+    GcsItemId dummyId = GcsItemId.builder().setBucketName("bucket").setObjectName("path").build();
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.listObjects(dummyId));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> gcsClient.deleteObjects(java.util.Collections.singletonList(dummyId)));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> gcsClient.updateObjectMetadata(dummyId, java.util.Collections.emptyMap()));
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.getFolderMetadata(dummyId));
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.createFolder(dummyId));
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.deleteFolder(dummyId));
+    assertThrows(
+        UnsupportedOperationException.class, () -> gcsClient.renameFolder(dummyId, dummyId));
   }
 }
