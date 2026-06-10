@@ -19,6 +19,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auth.Credentials;
+import com.google.cloud.gcs.analyticscore.client.cache.BucketCapabilitiesCache;
 import com.google.cloud.gcs.analyticscore.client.namespace.FlatNamespaceStrategyImpl;
 import com.google.cloud.gcs.analyticscore.client.namespace.HierarchicalNamespaceStrategyImpl;
 import com.google.cloud.gcs.analyticscore.client.namespace.NamespaceStrategy;
@@ -40,7 +41,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -54,8 +54,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   private final Telemetry telemetry;
 
-  private final ConcurrentHashMap<String, BucketCapabilities> bucketCapabilityCache =
-      new ConcurrentHashMap<>();
+  private final BucketCapabilitiesCache bucketCapabilityCache;
   private final FlatNamespaceStrategyImpl flatStrategy = new FlatNamespaceStrategyImpl();
   private final HierarchicalNamespaceStrategyImpl hnsStrategy =
       new HierarchicalNamespaceStrategyImpl();
@@ -64,6 +63,11 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
+    this.bucketCapabilityCache =
+        new BucketCapabilitiesCache(
+            fileSystemOptions.getBucketCapabilityCacheMaxSize(),
+            fileSystemOptions.getBucketCapabilityCacheTimeoutMinutes(),
+            TimeUnit.MINUTES);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
@@ -78,6 +82,11 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
+    this.bucketCapabilityCache =
+        new BucketCapabilitiesCache(
+            fileSystemOptions.getBucketCapabilityCacheMaxSize(),
+            fileSystemOptions.getBucketCapabilityCacheTimeoutMinutes(),
+            TimeUnit.MINUTES);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
@@ -106,19 +115,16 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
+    this.bucketCapabilityCache =
+        new BucketCapabilitiesCache(
+            fileSystemOptions.getBucketCapabilityCacheMaxSize(),
+            fileSystemOptions.getBucketCapabilityCacheTimeoutMinutes(),
+            TimeUnit.MINUTES);
   }
 
-  public NamespaceStrategy resolveStrategy(String bucketName) {
+  public NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
     BucketCapabilities capabilities =
-        bucketCapabilityCache.computeIfAbsent(
-            bucketName,
-            name -> {
-              try {
-                return gcsClient.getBucketCapabilities(name);
-              } catch (IOException e) {
-                throw new RuntimeException("Failed to probe bucket capabilities for: " + name, e);
-              }
-            });
+        bucketCapabilityCache.get(bucketName, gcsClient::getBucketCapabilities);
 
     if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
       return hnsStrategy;

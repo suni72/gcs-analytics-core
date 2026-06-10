@@ -162,7 +162,7 @@ class GcsClientImpl implements GcsClient {
       boolean hnsEnabled =
           bucket != null
               && bucket.getHierarchicalNamespace() != null
-              && bucket.getHierarchicalNamespace().getEnabled();
+              && Boolean.TRUE.equals(bucket.getHierarchicalNamespace().getEnabled());
       return new BucketCapabilities(hnsEnabled);
     } catch (StorageException storageException) {
       throw new IOException("Unable to access bucket :" + bucketName, storageException);
