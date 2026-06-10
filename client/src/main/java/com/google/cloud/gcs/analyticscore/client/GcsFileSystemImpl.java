@@ -120,7 +120,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
               }
             });
 
-    if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsOptimizationEnabled()) {
+    if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
       return hnsStrategy;
     }
     return flatStrategy;
@@ -224,18 +224,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   @Override
   public java.util.Map<String, byte[]> getXAttrs(GcsItemId id) throws IOException {
     throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  // Temporary duplicate so I can safely remove original block to avoid checkstyle or other errors.
-  public GcsFileInfo _getFileInfoOriginal(GcsItemId itemId) throws IOException {
-    GcsItemInfo gcsItemInfo = gcsClient.getGcsItemInfo(itemId);
-    return GcsFileInfo.builder()
-        .setItemInfo(gcsItemInfo)
-        .setUri(
-            URI.create(
-                BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()).toGsUtilUri()))
-        .setAttributes(Collections.emptyMap())
-        .build();
   }
 
   @Override

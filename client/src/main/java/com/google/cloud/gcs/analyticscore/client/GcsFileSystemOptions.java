@@ -41,7 +41,7 @@ public abstract class GcsFileSystemOptions {
 
   public abstract TelemetryOptions getAnalyticsCoreTelemetryOptions();
 
-  public abstract boolean isHnsOptimizationEnabled();
+  public abstract boolean isHnsApiEnabled();
 
   public abstract Builder toBuilder();
 
@@ -49,7 +49,7 @@ public abstract class GcsFileSystemOptions {
     return new AutoValue_GcsFileSystemOptions.Builder()
         .setReadThreadCount(16)
         .setClientType(ClientType.HTTP_CLIENT)
-        .setHnsOptimizationEnabled(false)
+        .setHnsApiEnabled(false)
         .setGcsClientOptions(GcsClientOptions.builder().build())
         .setAnalyticsCoreTelemetryOptions(TelemetryOptions.builder().build());
   }
@@ -66,7 +66,7 @@ public abstract class GcsFileSystemOptions {
           ClientType.valueOf(analyticsCoreOptions.get(prefix + CLIENT_TYPE_KEY)));
     }
     if (analyticsCoreOptions.containsKey(prefix + HNS_API_ENABLED_KEY)) {
-      optionsBuilder.setHnsOptimizationEnabled(
+      optionsBuilder.setHnsApiEnabled(
           Boolean.parseBoolean(analyticsCoreOptions.get(prefix + HNS_API_ENABLED_KEY)));
     }
     optionsBuilder.setGcsClientOptions(
@@ -86,7 +86,7 @@ public abstract class GcsFileSystemOptions {
 
     public abstract Builder setReadThreadCount(int readThreadCount);
 
-    public abstract Builder setHnsOptimizationEnabled(boolean isHnsOptimizationEnabled);
+    public abstract Builder setHnsApiEnabled(boolean isHnsApiEnabled);
 
     public abstract Builder setGcsClientOptions(GcsClientOptions gcsClientOptions);
 
