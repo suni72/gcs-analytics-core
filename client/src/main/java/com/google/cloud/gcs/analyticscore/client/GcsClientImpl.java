@@ -20,6 +20,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.auth.Credentials;
+import com.google.cloud.gcs.analyticscore.common.BucketCapabilities;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -116,7 +117,82 @@ class GcsClientImpl implements GcsClient {
   }
 
   @Override
+  public List<GcsItemInfo> listObjects(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
   public List<GcsItemInfo> listObjects(GcsItemId id, int maxResults) throws IOException {
+    checkNotNull(id, "GcsItemId must not be null.");
+    String prefix = id.getObjectName().orElse("");
+    java.util.List<Storage.BlobListOption> options = new java.util.ArrayList<>();
+    options.add(Storage.BlobListOption.pageSize(maxResults));
+    options.add(Storage.BlobListOption.currentDirectory());
+    if (!prefix.isEmpty()) {
+      options.add(Storage.BlobListOption.prefix(prefix));
+    }
+
+    try {
+      com.google.api.gax.paging.Page<Blob> page =
+          storage.list(id.getBucketName(), options.toArray(new Storage.BlobListOption[0]));
+      java.util.List<GcsItemInfo> result = new java.util.ArrayList<>();
+      int count = 0;
+      for (Blob blob : page.iterateAll()) {
+        if (count >= maxResults) {
+          break;
+        }
+        GcsItemId.Builder blobIdBuilder =
+            GcsItemId.builder().setBucketName(blob.getBucket()).setObjectName(blob.getName());
+        if (blob.getGeneration() != null) {
+          blobIdBuilder.setContentGeneration(blob.getGeneration());
+        }
+        GcsItemId blobId = blobIdBuilder.build();
+        boolean isInferredDirectory = blob.isDirectory();
+        long size = blob.isDirectory() ? 0 : blob.getSize();
+        GcsItemInfo info =
+            GcsItemInfo.builder()
+                .setItemId(blobId)
+                .setSize(size)
+                .setContentGeneration(blob.getGeneration() != null ? blob.getGeneration() : 0L)
+                .setInferredDirectory(isInferredDirectory)
+                .build();
+        result.add(info);
+        count++;
+      }
+      return result;
+    } catch (StorageException storageException) {
+      throw new IOException("Unable to list objects for :" + id, storageException);
+    }
+  }
+
+  @Override
+  public void deleteObjects(List<GcsItemId> ids) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void updateObjectMetadata(GcsItemId id, java.util.Map<String, byte[]> metadata)
+      throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public GcsItemInfo getFolderMetadata(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void createFolder(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void deleteFolder(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void renameFolder(GcsItemId src, GcsItemId dst) throws IOException {
     throw new UnsupportedOperationException("Not implemented yet");
   }
 

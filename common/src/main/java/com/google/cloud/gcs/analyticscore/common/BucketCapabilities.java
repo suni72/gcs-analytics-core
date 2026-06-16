@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-package com.google.cloud.gcs.analyticscore.client;
+package com.google.cloud.gcs.analyticscore.common;
 
-/** An optimization hint indicating the known type of a path to bypass redundant metadata checks. */
-public enum PathType {
-  UNKNOWN,
-  FILE,
-  DIRECTORY
+public class BucketCapabilities {
+  private final boolean hnsEnabled;
+
+  public BucketCapabilities(boolean hnsEnabled) {
+    this.hnsEnabled = hnsEnabled;
+  }
+
+  public boolean isHnsEnabled() {
+    return hnsEnabled;
+  }
 }

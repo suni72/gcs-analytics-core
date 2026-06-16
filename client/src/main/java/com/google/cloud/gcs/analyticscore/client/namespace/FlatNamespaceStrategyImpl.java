@@ -19,7 +19,7 @@ package com.google.cloud.gcs.analyticscore.client.namespace;
 import com.google.cloud.gcs.analyticscore.client.GcsClient;
 import com.google.cloud.gcs.analyticscore.client.GcsItemId;
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
-import com.google.cloud.gcs.analyticscore.client.PathType;
+import com.google.cloud.gcs.analyticscore.common.PathType;
 import java.io.IOException;
 import java.util.List;
 
@@ -46,11 +46,7 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
     GcsItemId dirId = id.toDirectoryId();
     List<GcsItemInfo> listedObjects = gcsClient.listObjects(dirId, 1);
     if (!listedObjects.isEmpty()) {
-      return GcsItemInfo.builder()
-          .setItemId(dirId)
-          .setSize(0L)
-          .setInferredDirectory(true)
-          .build();
+      return GcsItemInfo.builder().setItemId(dirId).setSize(0L).setInferredDirectory(true).build();
     }
 
     return GcsItemInfo.builder().setSize(-1L).build();
