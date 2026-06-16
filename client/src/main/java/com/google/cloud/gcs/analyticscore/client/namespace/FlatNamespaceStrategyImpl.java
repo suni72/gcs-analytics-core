@@ -16,15 +16,44 @@
 
 package com.google.cloud.gcs.analyticscore.client.namespace;
 
+import com.google.cloud.gcs.analyticscore.client.GcsClient;
 import com.google.cloud.gcs.analyticscore.client.GcsItemId;
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
 import com.google.cloud.gcs.analyticscore.client.PathType;
 import java.io.IOException;
+import java.util.List;
 
 public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
+  private final GcsClient gcsClient;
+
+  public FlatNamespaceStrategyImpl(GcsClient gcsClient) {
+    this.gcsClient = gcsClient;
+  }
+
   @Override
   public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
+    if (!id.isGcsObject()) {
+      return gcsClient.getGcsItemInfo(id);
+    }
+
+    if (pathType != PathType.DIRECTORY && !id.isDirectory()) {
+      GcsItemInfo objectInfo = gcsClient.getGcsItemInfo(id);
+      if (objectInfo != null && objectInfo.getSize() != -1L) {
+        return objectInfo;
+      }
+    }
+
+    GcsItemId dirId = id.toDirectoryId();
+    List<GcsItemInfo> listedObjects = gcsClient.listObjects(dirId, 1);
+    if (!listedObjects.isEmpty()) {
+      return GcsItemInfo.builder()
+          .setItemId(dirId)
+          .setSize(0L)
+          .setInferredDirectory(true)
+          .build();
+    }
+
+    return GcsItemInfo.builder().setSize(-1L).build();
   }
 
   @Override

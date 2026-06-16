@@ -49,4 +49,19 @@ public abstract class GcsItemId {
   public boolean isGcsObject() {
     return this.getBucketName() != null && !this.getObjectName().isEmpty();
   }
+
+  public boolean isDirectory() {
+    return isGcsObject() && getObjectName().get().endsWith("/");
+  }
+
+  public GcsItemId toDirectoryId() {
+    if (isDirectory()) {
+      return this;
+    }
+    String objectName = getObjectName().orElse("");
+    return GcsItemId.builder()
+        .setBucketName(getBucketName())
+        .setObjectName(objectName + "/")
+        .build();
+  }
 }

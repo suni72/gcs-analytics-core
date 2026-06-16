@@ -17,6 +17,7 @@ package com.google.cloud.gcs.analyticscore.client;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.util.List;
 
 @VisibleForTesting
 public interface GcsClient {
@@ -30,6 +31,9 @@ public interface GcsClient {
 
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
+
+  /** Lists objects under the given directory, up to a maximum number of results. */
+  List<GcsItemInfo> listObjects(GcsItemId id, int maxResults) throws IOException;
 
   /**
    * Probes and returns the capabilities supported by the specified bucket (e.g., whether

@@ -52,6 +52,12 @@ public class FakeGcsClientImpl extends GcsClientImpl {
   }
 
   @Override
+  public com.google.cloud.gcs.analyticscore.common.BucketCapabilities getBucketCapabilities(
+      String bucketName) {
+    return new com.google.cloud.gcs.analyticscore.common.BucketCapabilities(false);
+  }
+
+  @Override
   public VectoredSeekableByteChannel openReadChannel(
       GcsItemInfo itemInfo, GcsReadOptions readOptions) throws IOException {
     openReadChannelCount++;

@@ -70,6 +70,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             recorder ->
                 new GcsClientImpl(
                     fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry));
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   public GcsFileSystemImpl(Credentials credentials, GcsFileSystemOptions fileSystemOptions) {
@@ -88,6 +90,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     fileSystemOptions.getGcsClientOptions(),
                     executorServiceSupplier,
                     telemetry));
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   @VisibleForTesting
@@ -110,6 +114,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   public NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
@@ -149,12 +155,19 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   @Override
   public GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException {
-    GcsItemInfo gcsItemInfo = gcsClient.getGcsItemInfo(itemId);
+    GcsItemInfo gcsItemInfo =
+        resolveStrategy(itemId.getBucketName()).getFileInfo(itemId, com.google.cloud.gcs.analyticscore.common.PathType.UNKNOWN);
+    String objectName = itemId.getObjectName().orElse("");
+    String uriString = "gs://" + itemId.getBucketName();
+    if (!objectName.isEmpty()) {
+      uriString += "/" + objectName;
+    } else if (gcsItemInfo.isInferredDirectory()) {
+      uriString += "/";
+    }
+
     return GcsFileInfo.builder()
         .setItemInfo(gcsItemInfo)
-        .setUri(
-            URI.create(
-                BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()).toGsUtilUri()))
+        .setUri(URI.create(uriString))
         .setAttributes(Collections.emptyMap())
         .build();
   }

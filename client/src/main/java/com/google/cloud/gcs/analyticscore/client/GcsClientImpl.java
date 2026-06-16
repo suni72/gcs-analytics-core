@@ -116,6 +116,11 @@ class GcsClientImpl implements GcsClient {
   }
 
   @Override
+  public List<GcsItemInfo> listObjects(GcsItemId id, int maxResults) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
   public BucketCapabilities getBucketCapabilities(String bucketName) throws IOException {
     try {
       BucketInfo bucket =
