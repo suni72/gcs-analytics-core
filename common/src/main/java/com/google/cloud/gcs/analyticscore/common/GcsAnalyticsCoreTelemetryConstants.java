@@ -17,7 +17,9 @@ package com.google.cloud.gcs.analyticscore.common;
 
 public class GcsAnalyticsCoreTelemetryConstants {
   public enum Attribute {
-    CLASS_NAME
+    CLASS_NAME,
+    READ_LENGTH,
+    READ_OFFSET;
   }
 
   public enum Metric implements com.google.cloud.gcs.analyticscore.common.telemetry.Metric {

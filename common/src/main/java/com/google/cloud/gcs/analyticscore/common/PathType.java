@@ -14,20 +14,10 @@
  * limitations under the License.
  */
 
-package com.google.cloud.gcs.analyticscore.client;
+package com.google.cloud.gcs.analyticscore.common;
 
-/**
- * Describes GCS bucket metadata capabilities, such as whether Hierarchical Namespace (HNS) is
- * enabled. These capabilities influence query routing and optimization strategies.
- */
-public class BucketCapabilities {
-  private final boolean hnsEnabled;
-
-  public BucketCapabilities(boolean hnsEnabled) {
-    this.hnsEnabled = hnsEnabled;
-  }
-
-  public boolean isHnsEnabled() {
-    return hnsEnabled;
-  }
+public enum PathType {
+  UNKNOWN,
+  FILE,
+  DIRECTORY
 }

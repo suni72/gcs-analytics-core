@@ -18,22 +18,11 @@ package com.google.cloud.gcs.analyticscore.client;
 import static com.google.common.truth.Truth.assertThat;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 import com.google.auth.Credentials;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
-import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.Bucket;
-import com.google.cloud.storage.BucketInfo;
-import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.*;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -52,7 +41,8 @@ class GcsClientImplTest {
   private static GcsClientOptions TEST_GCS_CLIENT_OPTIONS =
       GcsClientOptions.builder().setProjectId("test-project").build();
 
-  private final Storage storage = spy(LocalStorageHelper.getOptions().getService());
+  private final Storage storage =
+      org.mockito.Mockito.spy(LocalStorageHelper.getOptions().getService());
   private final Supplier<ExecutorService> executorServiceSupplier =
       Suppliers.memoize(() -> Executors.newFixedThreadPool(30));
   private final Telemetry telemetry = new Telemetry(ImmutableList.of());
@@ -257,40 +247,63 @@ class GcsClientImplTest {
 
   @Test
   void getBucketCapabilities_hnsEnabled_returnsTrue() throws IOException {
-    BucketInfo.HierarchicalNamespace hns = mock(BucketInfo.HierarchicalNamespace.class);
-    when(hns.getEnabled()).thenReturn(true);
-    Bucket mockBucket = mock(Bucket.class);
-    when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
-    doReturn(mockBucket).when(storage).get(eq("hns-bucket"), any(Storage.BucketGetOption.class));
-    BucketCapabilities capabilities = gcsClient.getBucketCapabilities("hns-bucket");
+    BucketInfo.HierarchicalNamespace hns =
+        org.mockito.Mockito.mock(BucketInfo.HierarchicalNamespace.class);
+    org.mockito.Mockito.when(hns.getEnabled()).thenReturn(true);
+    Bucket mockBucket = org.mockito.Mockito.mock(Bucket.class);
+    org.mockito.Mockito.when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
+    org.mockito.Mockito.doReturn(mockBucket)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("hns-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    com.google.cloud.gcs.analyticscore.common.BucketCapabilities capabilities =
+        gcsClient.getBucketCapabilities("hns-bucket");
     assertThat(capabilities.isHnsEnabled()).isTrue();
   }
 
   @Test
   void getBucketCapabilities_hnsDisabled_returnsFalse() throws IOException {
-    BucketInfo.HierarchicalNamespace hns = mock(BucketInfo.HierarchicalNamespace.class);
-    when(hns.getEnabled()).thenReturn(false);
-    Bucket mockBucket = mock(Bucket.class);
-    when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
-    doReturn(mockBucket).when(storage).get(eq("flat-bucket"), any(Storage.BucketGetOption.class));
-    BucketCapabilities capabilities = gcsClient.getBucketCapabilities("flat-bucket");
+    BucketInfo.HierarchicalNamespace hns =
+        org.mockito.Mockito.mock(BucketInfo.HierarchicalNamespace.class);
+    org.mockito.Mockito.when(hns.getEnabled()).thenReturn(false);
+    Bucket mockBucket = org.mockito.Mockito.mock(Bucket.class);
+    org.mockito.Mockito.when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
+    org.mockito.Mockito.doReturn(mockBucket)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("flat-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    com.google.cloud.gcs.analyticscore.common.BucketCapabilities capabilities =
+        gcsClient.getBucketCapabilities("flat-bucket");
     assertThat(capabilities.isHnsEnabled()).isFalse();
   }
 
   @Test
   void getBucketCapabilities_hnsNull_returnsFalse() throws IOException {
-    Bucket mockBucket = mock(Bucket.class);
-    when(mockBucket.getHierarchicalNamespace()).thenReturn(null);
-    doReturn(mockBucket)
+    Bucket mockBucket = org.mockito.Mockito.mock(Bucket.class);
+    org.mockito.Mockito.when(mockBucket.getHierarchicalNamespace()).thenReturn(null);
+    org.mockito.Mockito.doReturn(mockBucket)
         .when(storage)
-        .get(eq("flat-bucket-null-hns"), any(Storage.BucketGetOption.class));
-    BucketCapabilities capabilities = gcsClient.getBucketCapabilities("flat-bucket-null-hns");
+        .get(
+            org.mockito.ArgumentMatchers.eq("flat-bucket-null-hns"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
+    com.google.cloud.gcs.analyticscore.common.BucketCapabilities capabilities =
+        gcsClient.getBucketCapabilities("flat-bucket-null-hns");
     assertThat(capabilities.isHnsEnabled()).isFalse();
   }
 
   @Test
   void getBucketCapabilities_bucketNotFound_throwsIOException() {
-    doReturn(null).when(storage).get(eq("non-existent-bucket"), any(Storage.BucketGetOption.class));
+    org.mockito.Mockito.doReturn(null)
+        .when(storage)
+        .get(
+            org.mockito.ArgumentMatchers.eq("non-existent-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
     IOException e =
         assertThrows(
             IOException.class, () -> gcsClient.getBucketCapabilities("non-existent-bucket"));
@@ -299,11 +312,79 @@ class GcsClientImplTest {
 
   @Test
   void getBucketCapabilities_storageException_throwsIOException() {
-    doThrow(new StorageException(500, "Internal Error"))
+    org.mockito.Mockito.doThrow(new StorageException(500, "Internal Error"))
         .when(storage)
-        .get(eq("error-bucket"), any(Storage.BucketGetOption.class));
+        .get(
+            org.mockito.ArgumentMatchers.eq("error-bucket"),
+            org.mockito.ArgumentMatchers.any(Storage.BucketGetOption.class));
+
     IOException e =
         assertThrows(IOException.class, () -> gcsClient.getBucketCapabilities("error-bucket"));
     assertThat(e).hasMessageThat().contains("Unable to access bucket: error-bucket");
+  }
+
+  @Test
+  void unsupportedMethods_throwUnsupportedOperationException() {
+    GcsItemId dummyId = GcsItemId.builder().setBucketName("bucket").setObjectName("path").build();
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.listObjects(dummyId));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> gcsClient.deleteObjects(java.util.Collections.singletonList(dummyId)));
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> gcsClient.updateObjectMetadata(dummyId, java.util.Collections.emptyMap()));
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.getFolderMetadata(dummyId));
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.createFolder(dummyId));
+    assertThrows(UnsupportedOperationException.class, () -> gcsClient.deleteFolder(dummyId));
+    assertThrows(
+        UnsupportedOperationException.class, () -> gcsClient.renameFolder(dummyId, dummyId));
+  }
+
+  @Test
+  void listObjects_returnsItemsUpToMaxResults() throws IOException {
+    String bucketName = "test-bucket";
+    String prefix = "test-prefix/";
+    storage.create(
+        com.google.cloud.storage.BlobInfo.newBuilder(bucketName, prefix + "file1.txt").build(),
+        new byte[0]);
+    storage.create(
+        com.google.cloud.storage.BlobInfo.newBuilder(bucketName, prefix + "file2.txt").build(),
+        new byte[0]);
+    storage.create(
+        com.google.cloud.storage.BlobInfo.newBuilder(bucketName, prefix + "file3.txt").build(),
+        new byte[0]);
+
+    GcsItemId dirId = GcsItemId.builder().setBucketName(bucketName).setObjectName(prefix).build();
+    java.util.List<GcsItemInfo> results = gcsClient.listObjects(dirId, 2);
+
+    assertThat(results).hasSize(2);
+    assertThat(results.get(0).getItemId().getBucketName()).isEqualTo(bucketName);
+    assertThat(results.get(1).getItemId().getBucketName()).isEqualTo(bucketName);
+  }
+
+  @Test
+  void listObjects_withEmptyPrefix_listsBucketRoot() throws IOException {
+    String bucketName = "test-root-bucket";
+    storage.create(
+        com.google.cloud.storage.BlobInfo.newBuilder(bucketName, "fileA.txt").build(), new byte[0]);
+    storage.create(
+        com.google.cloud.storage.BlobInfo.newBuilder(bucketName, "fileB.txt").build(), new byte[0]);
+
+    GcsItemId bucketId = GcsItemId.builder().setBucketName(bucketName).build();
+    java.util.List<GcsItemInfo> results = gcsClient.listObjects(bucketId, 5);
+
+    assertThat(results).hasSize(2);
+  }
+
+  @Test
+  void listObjects_withStorageException_throwsIOException() throws IOException {
+    GcsItemId dirId =
+        GcsItemId.builder().setBucketName("error-bucket").setObjectName("test/").build();
+    org.mockito.Mockito.doThrow(new StorageException(500, "Internal Server Error"))
+        .when(storage)
+        .list(org.mockito.ArgumentMatchers.eq("error-bucket"), org.mockito.ArgumentMatchers.any());
+
+    IOException exception = assertThrows(IOException.class, () -> gcsClient.listObjects(dirId, 1));
+    assertThat(exception.getMessage()).contains("Unable to list objects for");
   }
 }

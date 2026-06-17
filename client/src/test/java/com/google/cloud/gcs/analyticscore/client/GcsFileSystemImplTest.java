@@ -68,7 +68,10 @@ class GcsFileSystemImplTest {
   private GcsFileSystem gcsFileSystem;
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws IOException {
+    lenient()
+        .when(mockClient.getBucketCapabilities(anyString()))
+        .thenReturn(new com.google.cloud.gcs.analyticscore.common.BucketCapabilities(false));
     gcsFileSystem = new GcsFileSystemImpl(mockClient, TEST_GCS_FILESYSTEM_OPTIONS);
   }
 
@@ -384,11 +387,6 @@ class GcsFileSystemImplTest {
   @Test
   void getGcsClient_shouldReturnConfiguredClient() {
     assertEquals(mockClient, gcsFileSystem.getGcsClient());
-  }
-
-  @Test
-  void getCacheManager_default_returnsNonNullInstance() {
-    assertThat(gcsFileSystem.getCacheManager()).isNotNull();
   }
 
   @Test

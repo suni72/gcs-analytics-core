@@ -51,6 +51,7 @@ class AnalyticsCacheNoOpImplTest {
               callCount.incrementAndGet();
               return "val1";
             });
+
     String value2 =
         cache.get(
             "key1",
@@ -92,7 +93,6 @@ class AnalyticsCacheNoOpImplTest {
   @Test
   void invalidate_anyKey_doesNothing() {
     cache.put("key1", "value1");
-
     cache.invalidate("key1");
     cache.invalidateAll();
 
