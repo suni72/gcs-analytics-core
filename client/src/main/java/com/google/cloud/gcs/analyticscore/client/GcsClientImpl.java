@@ -127,11 +127,7 @@ class GcsClientImpl implements GcsClient {
     if (bucketInfo == null) {
       throw new IOException("Bucket not found: " + itemId.getBucketName());
     }
-    return GcsItemInfo.builder()
-        .setItemId(itemId)
-        .setSize(0)
-        .setInferredDirectory(true)
-        .build();
+    return GcsItemInfo.builder().setItemId(itemId).setSize(0).setInferredDirectory(true).build();
   }
 
   @Override
@@ -141,33 +137,33 @@ class GcsClientImpl implements GcsClient {
     if (blob == null) {
       throw new IOException("Folder not found: " + itemId);
     }
-    return GcsItemInfo.builder()
-        .setItemId(itemId)
-        .setSize(0)
-        .setNativeHnsFolder(true)
-        .build();
+    return GcsItemInfo.builder().setItemId(itemId).setSize(0).setNativeHnsFolder(true).build();
   }
 
   @Override
-  public java.util.List<GcsItemInfo> listObjectInfo(GcsItemId prefixId, int maxResults) throws IOException {
+  public java.util.List<GcsItemInfo> listObjectInfo(GcsItemId prefixId, int maxResults)
+      throws IOException {
     String prefix = prefixId.getObjectName().orElse("");
-    com.google.api.gax.paging.Page<Blob> page = storage.list(
-        prefixId.getBucketName(),
-        Storage.BlobListOption.prefix(prefix),
-        Storage.BlobListOption.pageSize(maxResults));
-    
+    com.google.api.gax.paging.Page<Blob> page =
+        storage.list(
+            prefixId.getBucketName(),
+            Storage.BlobListOption.prefix(prefix),
+            Storage.BlobListOption.pageSize(maxResults));
+
     ImmutableList.Builder<GcsItemInfo> builder = ImmutableList.builder();
     for (Blob blob : page.iterateAll()) {
-      GcsItemId id = GcsItemId.builder()
-          .setContentGeneration(blob.getGeneration())
-          .setBucketName(blob.getBucket())
-          .setObjectName(blob.getName())
-          .build();
-      builder.add(GcsItemInfo.builder()
-          .setItemId(id)
-          .setSize(blob.getSize())
-          .setContentGeneration(blob.getGeneration())
-          .build());
+      GcsItemId id =
+          GcsItemId.builder()
+              .setContentGeneration(blob.getGeneration())
+              .setBucketName(blob.getBucket())
+              .setObjectName(blob.getName())
+              .build();
+      builder.add(
+          GcsItemInfo.builder()
+              .setItemId(id)
+              .setSize(blob.getSize())
+              .setContentGeneration(blob.getGeneration())
+              .build());
       if (builder.build().size() >= maxResults && maxResults > 0) {
         break;
       }
