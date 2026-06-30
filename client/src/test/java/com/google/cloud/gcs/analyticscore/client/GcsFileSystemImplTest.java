@@ -214,6 +214,9 @@ class GcsFileSystemImplTest {
             .setSize((long) content.length())
             .setContentGeneration(12345L) // A sample generation ID
             .build();
+    lenient()
+        .when(mockClient.getBucketProperties(TEST_BUCKET))
+        .thenReturn(BucketProperties.create(false));
     when(mockClient.getGcsItemInfo(eq(itemId))).thenReturn(mockItemInfo);
 
     GcsFileInfo fileInfo = gcsFileSystem.getFileInfo(gcsPath);
@@ -234,13 +237,16 @@ class GcsFileSystemImplTest {
     GcsItemId nonExistentItemId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("non-existent-object").build();
     URI nonExistentPath = new URI("gs://" + TEST_BUCKET + "/non-existent-object");
+    lenient()
+        .when(mockClient.getBucketProperties(TEST_BUCKET))
+        .thenReturn(BucketProperties.create(false));
     when(mockClient.getGcsItemInfo(eq(nonExistentItemId)))
         .thenThrow(new IOException("Object not found:" + nonExistentItemId));
 
     IOException e =
         assertThrows(IOException.class, () -> gcsFileSystem.getFileInfo(nonExistentPath));
 
-    assertThat(e).hasMessageThat().contains("Object not found:" + nonExistentItemId);
+    assertThat(e).hasMessageThat().contains("File not found: " + nonExistentItemId);
   }
 
   @Test
@@ -290,6 +296,9 @@ class GcsFileSystemImplTest {
             .setSize((long) content.length())
             .setContentGeneration(12345L) // A sample generation ID
             .build();
+    lenient()
+        .when(mockClient.getBucketProperties(TEST_BUCKET))
+        .thenReturn(BucketProperties.create(false));
     when(mockClient.getGcsItemInfo(eq(itemId))).thenReturn(mockItemInfo);
 
     GcsFileInfo fileInfo = gcsFileSystem.getFileInfo(itemId);
@@ -308,13 +317,16 @@ class GcsFileSystemImplTest {
   void getFileInfo_withNonExistentItemId_shouldThrowException() throws IOException {
     GcsItemId nonExistentItemId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("non-existent-object").build();
+    lenient()
+        .when(mockClient.getBucketProperties(TEST_BUCKET))
+        .thenReturn(BucketProperties.create(false));
     when(mockClient.getGcsItemInfo(eq(nonExistentItemId)))
         .thenThrow(new IOException("Object not found:" + nonExistentItemId));
 
     IOException e =
         assertThrows(IOException.class, () -> gcsFileSystem.getFileInfo(nonExistentItemId));
 
-    assertThat(e).hasMessageThat().contains("Object not found:" + nonExistentItemId);
+    assertThat(e).hasMessageThat().contains("File not found: " + nonExistentItemId);
   }
 
   @Test
@@ -558,16 +570,14 @@ class GcsFileSystemImplTest {
   }
 
   @Test
-  void resolveStrategy_hnsEnabledInPropertiesAndApiEnabled_returnsHnsStrategy()
-      throws IOException {
+  void resolveStrategy_hnsEnabledInPropertiesAndApiEnabled_returnsHnsStrategy() throws IOException {
     GcsFileSystemOptions options =
         GcsFileSystemOptions.builder()
             .setGcsClientOptions(TEST_GCS_CLIENT_OPTIONS)
             .setHnsApiEnabled(true)
             .build();
     try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketProperties(TEST_BUCKET))
-          .thenReturn(BucketProperties.create(true));
+      when(mockClient.getBucketProperties(TEST_BUCKET)).thenReturn(BucketProperties.create(true));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(HierarchicalNamespaceStrategyImpl.class);
     }
@@ -582,8 +592,7 @@ class GcsFileSystemImplTest {
             .setHnsApiEnabled(false)
             .build();
     try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketProperties(TEST_BUCKET))
-          .thenReturn(BucketProperties.create(true));
+      when(mockClient.getBucketProperties(TEST_BUCKET)).thenReturn(BucketProperties.create(true));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
     }
@@ -598,8 +607,7 @@ class GcsFileSystemImplTest {
             .setHnsApiEnabled(true)
             .build();
     try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketProperties(TEST_BUCKET))
-          .thenReturn(BucketProperties.create(false));
+      when(mockClient.getBucketProperties(TEST_BUCKET)).thenReturn(BucketProperties.create(false));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
     }

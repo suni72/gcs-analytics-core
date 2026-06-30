@@ -43,6 +43,18 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
     GcsItemId prefixId =
         GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
 
+    if (pathType == PathType.DIRECTORY) {
+      List<GcsItemInfo> children = gcsClient.listObjectInfo(prefixId, 1);
+      if (children != null && !children.isEmpty()) {
+        return GcsItemInfo.builder()
+            .setItemId(prefixId)
+            .setSize(0)
+            .setInferredDirectory(true)
+            .build();
+      }
+      throw new IOException("File not found: " + id);
+    }
+
     Future<List<GcsItemInfo>> prefixScanFuture =
         executorService.submit(() -> gcsClient.listObjectInfo(prefixId, 1));
 

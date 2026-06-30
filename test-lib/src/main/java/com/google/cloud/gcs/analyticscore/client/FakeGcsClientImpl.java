@@ -52,6 +52,12 @@ public class FakeGcsClientImpl extends GcsClientImpl {
   }
 
   @Override
+  public BucketProperties getBucketProperties(String bucketName) {
+    // FakeStorageRpc does not support bucket operations
+    return BucketProperties.create(false);
+  }
+
+  @Override
   public VectoredSeekableByteChannel openReadChannel(
       GcsItemInfo itemInfo, GcsReadOptions readOptions) throws IOException {
     openReadChannelCount++;
