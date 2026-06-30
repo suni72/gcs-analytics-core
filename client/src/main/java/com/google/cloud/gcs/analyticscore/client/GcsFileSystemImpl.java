@@ -190,7 +190,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     }
 
     if (itemId.isBucket()) {
-      GcsItemInfo bucketInfo = gcsClient.getBucket(itemId);
+      GcsItemInfo bucketInfo = gcsClient.getBucketInfo(itemId);
       return GcsFileInfo.builder()
           .setItemInfo(bucketInfo)
           .setUri(URI.create("gs://" + itemId.getBucketName() + "/"))

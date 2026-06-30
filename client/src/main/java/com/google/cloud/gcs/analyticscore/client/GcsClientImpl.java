@@ -116,7 +116,7 @@ class GcsClientImpl implements GcsClient {
   }
 
   @Override
-  public GcsItemInfo getBucket(GcsItemId itemId) throws IOException {
+  public GcsItemInfo getBucketInfo(GcsItemId itemId) throws IOException {
     checkArgument(itemId.isBucket(), "Expected a bucket itemId");
     BucketInfo bucketInfo = storage.get(itemId.getBucketName());
     if (bucketInfo == null) {
@@ -126,7 +126,7 @@ class GcsClientImpl implements GcsClient {
   }
 
   @Override
-  public GcsItemInfo getFolderMetadata(GcsItemId itemId) throws IOException {
+  public GcsItemInfo getFolderInfo(GcsItemId itemId) throws IOException {
     // Basic fallback/stub for now. Storage Control API might be needed for real implementation.
     Blob blob = storage.get(itemId.getBucketName(), itemId.getObjectName().get());
     if (blob == null) {

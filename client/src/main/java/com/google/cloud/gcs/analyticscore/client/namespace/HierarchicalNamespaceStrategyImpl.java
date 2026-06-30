@@ -39,7 +39,7 @@ public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
         GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
 
     try {
-      return gcsClient.getFolderMetadata(folderId);
+      return gcsClient.getFolderInfo(folderId);
     } catch (IOException e) {
       // Fallback
       GcsItemId objectId =
