@@ -30,7 +30,6 @@ import com.google.cloud.gcs.analyticscore.common.telemetry.OpenTelemetryReporter
 import com.google.cloud.gcs.analyticscore.common.telemetry.OperationListener;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.gcs.analyticscore.common.telemetry.TelemetryOptions;
-import com.google.cloud.storage.BlobId;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -69,7 +68,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             recorder ->
                 new GcsClientImpl(
                     fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry));
-    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
+    this.flatStrategy =
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -89,7 +89,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     fileSystemOptions.getGcsClientOptions(),
                     executorServiceSupplier,
                     telemetry));
-    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
+    this.flatStrategy =
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -113,7 +114,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
-    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
+    this.flatStrategy =
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -152,11 +154,12 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     return getFileInfo(itemId);
   }
 
-  private static final GcsItemInfo ROOT_INFO = GcsItemInfo.builder()
-      .setItemId(GcsItemId.builder().setBucketName("").setObjectName("").build())
-      .setSize(0)
-      .setInferredDirectory(true)
-      .build();
+  private static final GcsItemInfo ROOT_INFO =
+      GcsItemInfo.builder()
+          .setItemId(GcsItemId.builder().setBucketName("").setObjectName("").build())
+          .setSize(0)
+          .setInferredDirectory(true)
+          .build();
 
   private PathType resolvePathType(GcsItemId id) {
     if (id.getObjectName().isPresent()) {
@@ -164,8 +167,12 @@ public class GcsFileSystemImpl implements GcsFileSystem {
       if (name.endsWith("/")) {
         return PathType.DIRECTORY;
       }
-      if (name.endsWith(".parquet") || name.endsWith(".csv") || name.endsWith(".avro") 
-          || name.endsWith(".json") || name.endsWith(".orc") || name.endsWith("_SUCCESS")) {
+      if (name.endsWith(".parquet")
+          || name.endsWith(".csv")
+          || name.endsWith(".avro")
+          || name.endsWith(".json")
+          || name.endsWith(".orc")
+          || name.endsWith("_SUCCESS")) {
         return PathType.FILE;
       }
     }
