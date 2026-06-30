@@ -596,7 +596,7 @@ class GcsFileSystemImplTest {
   }
 
   @Test
-  void resolveStrategy_hnsEnabledInCapabilitiesAndApiEnabled_returnsHnsStrategy()
+  void resolveStrategy_hnsEnabledInPropertiesAndApiEnabled_returnsHnsStrategy() 
       throws IOException {
     GcsFileSystemOptions options =
         GcsFileSystemOptions.builder()
@@ -604,15 +604,15 @@ class GcsFileSystemImplTest {
             .setHnsApiEnabled(true)
             .build();
     try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketCapabilities(TEST_BUCKET))
-          .thenReturn(BucketCapabilities.create(true));
+      when(mockClient.getBucketProperties(TEST_BUCKET))
+          .thenReturn(BucketProperties.create(true));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(HierarchicalNamespaceStrategyImpl.class);
     }
   }
 
   @Test
-  void resolveStrategy_hnsEnabledInCapabilitiesButApiDisabled_returnsFlatStrategy()
+  void resolveStrategy_hnsEnabledInPropertiesButApiDisabled_returnsFlatStrategy()
       throws IOException {
     GcsFileSystemOptions options =
         GcsFileSystemOptions.builder()
@@ -620,15 +620,15 @@ class GcsFileSystemImplTest {
             .setHnsApiEnabled(false)
             .build();
     try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketCapabilities(TEST_BUCKET))
-          .thenReturn(BucketCapabilities.create(true));
+      when(mockClient.getBucketProperties(TEST_BUCKET))
+          .thenReturn(BucketProperties.create(true));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
     }
   }
 
   @Test
-  void resolveStrategy_hnsDisabledInCapabilitiesAndApiEnabled_returnsFlatStrategy()
+  void resolveStrategy_hnsDisabledInPropertiesAndApiEnabled_returnsFlatStrategy()
       throws IOException {
     GcsFileSystemOptions options =
         GcsFileSystemOptions.builder()
@@ -636,8 +636,8 @@ class GcsFileSystemImplTest {
             .setHnsApiEnabled(true)
             .build();
     try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketCapabilities(TEST_BUCKET))
-          .thenReturn(BucketCapabilities.create(false));
+      when(mockClient.getBucketProperties(TEST_BUCKET))
+          .thenReturn(BucketProperties.create(false));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
     }

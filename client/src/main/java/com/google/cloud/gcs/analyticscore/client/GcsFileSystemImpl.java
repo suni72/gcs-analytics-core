@@ -114,10 +114,10 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   }
 
   NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
-    BucketCapabilities capabilities =
-        cacheManager.getBucketCapabilities(bucketName, gcsClient::getBucketCapabilities);
+    BucketProperties properties =
+        cacheManager.getBucketProperties(bucketName, gcsClient::getBucketProperties);
 
-    if (capabilities.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
+    if (properties.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
       return hnsStrategy;
     }
     return flatStrategy;
