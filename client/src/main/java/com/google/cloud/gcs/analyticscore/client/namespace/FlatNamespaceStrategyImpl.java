@@ -16,15 +16,55 @@
 
 package com.google.cloud.gcs.analyticscore.client.namespace;
 
+import com.google.cloud.gcs.analyticscore.client.GcsClient;
 import com.google.cloud.gcs.analyticscore.client.GcsItemId;
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
 import com.google.cloud.gcs.analyticscore.client.PathType;
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
+
+  private final GcsClient gcsClient;
+  private final ExecutorService executorService;
+
+  public FlatNamespaceStrategyImpl(GcsClient gcsClient, ExecutorService executorService) {
+    this.gcsClient = gcsClient;
+    this.executorService = executorService;
+  }
+
   @Override
   public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
+    String objectName = id.getObjectName().orElse("");
+    String dirPrefix = objectName.endsWith("/") ? objectName : objectName + "/";
+
+    GcsItemId prefixId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+
+    Future<List<GcsItemInfo>> prefixScanFuture =
+        executorService.submit(() -> gcsClient.listObjectInfo(prefixId, 1));
+
+    try {
+      GcsItemInfo directInfo = gcsClient.getGcsItemInfo(id);
+      prefixScanFuture.cancel(true);
+      return directInfo;
+    } catch (IOException e) {
+      try {
+        List<GcsItemInfo> children = prefixScanFuture.get();
+        if (children != null && !children.isEmpty()) {
+          return GcsItemInfo.builder()
+              .setItemId(prefixId)
+              .setSize(0)
+              .setInferredDirectory(true)
+              .build();
+        }
+      } catch (Exception ex) {
+        // Interrupted or ExecutionException
+      }
+      throw new IOException("File not found: " + id, e);
+    }
   }
 
   @Override

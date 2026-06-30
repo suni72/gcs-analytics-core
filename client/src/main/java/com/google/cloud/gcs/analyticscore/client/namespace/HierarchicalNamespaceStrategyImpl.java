@@ -16,15 +16,46 @@
 
 package com.google.cloud.gcs.analyticscore.client.namespace;
 
+import com.google.cloud.gcs.analyticscore.client.GcsClient;
 import com.google.cloud.gcs.analyticscore.client.GcsItemId;
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
 import com.google.cloud.gcs.analyticscore.client.PathType;
 import java.io.IOException;
 
 public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
+
+  private final GcsClient gcsClient;
+
+  public HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
+    this.gcsClient = gcsClient;
+  }
+
   @Override
   public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
+    String objectName = id.getObjectName().orElse("");
+    String dirPrefix = objectName.endsWith("/") ? objectName : objectName + "/";
+
+    GcsItemId folderId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+
+    try {
+      return gcsClient.getFolderMetadata(folderId);
+    } catch (IOException e) {
+      // Fallback
+      GcsItemId objectId =
+          GcsItemId.builder()
+              .setBucketName(id.getBucketName())
+              .setObjectName(
+                  objectName.endsWith("/")
+                      ? objectName.substring(0, objectName.length() - 1)
+                      : objectName)
+              .build();
+      try {
+        return gcsClient.getGcsItemInfo(objectId);
+      } catch (IOException ex) {
+        throw new IOException("File not found: " + id, ex);
+      }
+    }
   }
 
   @Override

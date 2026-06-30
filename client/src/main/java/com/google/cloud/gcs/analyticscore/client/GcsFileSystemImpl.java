@@ -53,9 +53,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   private final Telemetry telemetry;
   private final AnalyticsCacheManager cacheManager;
 
-  private final FlatNamespaceStrategyImpl flatStrategy = new FlatNamespaceStrategyImpl();
-  private final HierarchicalNamespaceStrategyImpl hnsStrategy =
-      new HierarchicalNamespaceStrategyImpl();
+  private final FlatNamespaceStrategyImpl flatStrategy;
+  private final HierarchicalNamespaceStrategyImpl hnsStrategy;
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
@@ -70,6 +69,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             recorder ->
                 new GcsClientImpl(
                     fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry));
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   public GcsFileSystemImpl(Credentials credentials, GcsFileSystemOptions fileSystemOptions) {
@@ -88,6 +89,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     fileSystemOptions.getGcsClientOptions(),
                     executorServiceSupplier,
                     telemetry));
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   @VisibleForTesting
@@ -110,6 +113,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient, this.executorServiceSupplier.get());
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
