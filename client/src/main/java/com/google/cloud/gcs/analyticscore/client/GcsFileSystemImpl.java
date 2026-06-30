@@ -147,14 +147,68 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     return getFileInfo(itemId);
   }
 
+  private static final GcsItemInfo ROOT_INFO = GcsItemInfo.builder()
+      .setItemId(GcsItemId.builder().setBucketName("").setObjectName("").build())
+      .setSize(0)
+      .setInferredDirectory(true)
+      .build();
+
+  private PathType resolvePathType(GcsItemId id) {
+    if (id.getObjectName().isPresent()) {
+      String name = id.getObjectName().get();
+      if (name.endsWith("/")) {
+        return PathType.DIRECTORY;
+      }
+      if (name.endsWith(".parquet") || name.endsWith(".csv") || name.endsWith(".avro") 
+          || name.endsWith(".json") || name.endsWith(".orc") || name.endsWith("_SUCCESS")) {
+        return PathType.FILE;
+      }
+    }
+    return PathType.UNKNOWN;
+  }
+
   @Override
   public GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException {
-    GcsItemInfo gcsItemInfo = gcsClient.getGcsItemInfo(itemId);
+    if (itemId.isRoot()) {
+      return GcsFileInfo.builder()
+          .setItemInfo(ROOT_INFO)
+          .setUri(URI.create("gs://"))
+          .setAttributes(Collections.emptyMap())
+          .build();
+    }
+
+    if (itemId.isBucket()) {
+      GcsItemInfo bucketInfo = gcsClient.getBucket(itemId);
+      return GcsFileInfo.builder()
+          .setItemInfo(bucketInfo)
+          .setUri(URI.create("gs://" + itemId.getBucketName() + "/"))
+          .setAttributes(Collections.emptyMap())
+          .build();
+    }
+
+    PathType pathType = resolvePathType(itemId);
+    GcsItemInfo itemInfo = null;
+
+    if (pathType == PathType.FILE) {
+      try {
+        itemInfo = gcsClient.getGcsItemInfo(itemId);
+        return buildFileInfo(itemInfo);
+      } catch (IOException e) {
+        // Fallthrough if not found. Regex heuristic might have misidentified.
+      }
+    }
+
+    NamespaceStrategy strategy = resolveStrategy(itemId.getBucketName());
+    itemInfo = strategy.getFileInfo(itemId, pathType);
+    return buildFileInfo(itemInfo);
+  }
+
+  private GcsFileInfo buildFileInfo(GcsItemInfo itemInfo) {
+    GcsItemId id = itemInfo.getItemId();
+    String uriStr = "gs://" + id.getBucketName() + "/" + id.getObjectName().orElse("");
     return GcsFileInfo.builder()
-        .setItemInfo(gcsItemInfo)
-        .setUri(
-            URI.create(
-                BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()).toGsUtilUri()))
+        .setItemInfo(itemInfo)
+        .setUri(URI.create(uriStr))
         .setAttributes(Collections.emptyMap())
         .build();
   }

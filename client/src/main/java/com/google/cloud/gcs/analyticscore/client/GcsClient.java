@@ -31,6 +31,15 @@ public interface GcsClient {
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
 
+  /** Fetches bucket metadata. */
+  GcsItemInfo getBucket(GcsItemId itemId) throws IOException;
+
+  /** Fetches folder metadata for HNS buckets. */
+  GcsItemInfo getFolderMetadata(GcsItemId itemId) throws IOException;
+
+  /** Lists objects in a bucket. */
+  java.util.List<GcsItemInfo> listObjectInfo(GcsItemId prefixId, int maxResults) throws IOException;
+
   /**
    * Retrieves the properties of the specified bucket (e.g., whether it is an HNS bucket or not).
    */
