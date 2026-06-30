@@ -120,6 +120,61 @@ class GcsClientImpl implements GcsClient {
         String.format("Expected gcs object but got %s", itemId));
   }
 
+  @Override
+  public GcsItemInfo getBucket(GcsItemId itemId) throws IOException {
+    checkArgument(itemId.isBucket(), "Expected a bucket itemId");
+    BucketInfo bucketInfo = storage.get(itemId.getBucketName());
+    if (bucketInfo == null) {
+      throw new IOException("Bucket not found: " + itemId.getBucketName());
+    }
+    return GcsItemInfo.builder()
+        .setItemId(itemId)
+        .setSize(0)
+        .setInferredDirectory(true)
+        .build();
+  }
+
+  @Override
+  public GcsItemInfo getFolderMetadata(GcsItemId itemId) throws IOException {
+    // Basic fallback/stub for now. Storage Control API might be needed for real implementation.
+    Blob blob = storage.get(itemId.getBucketName(), itemId.getObjectName().get());
+    if (blob == null) {
+      throw new IOException("Folder not found: " + itemId);
+    }
+    return GcsItemInfo.builder()
+        .setItemId(itemId)
+        .setSize(0)
+        .setNativeHnsFolder(true)
+        .build();
+  }
+
+  @Override
+  public java.util.List<GcsItemInfo> listObjectInfo(GcsItemId prefixId, int maxResults) throws IOException {
+    String prefix = prefixId.getObjectName().orElse("");
+    com.google.api.gax.paging.Page<Blob> page = storage.list(
+        prefixId.getBucketName(),
+        Storage.BlobListOption.prefix(prefix),
+        Storage.BlobListOption.pageSize(maxResults));
+    
+    ImmutableList.Builder<GcsItemInfo> builder = ImmutableList.builder();
+    for (Blob blob : page.iterateAll()) {
+      GcsItemId id = GcsItemId.builder()
+          .setContentGeneration(blob.getGeneration())
+          .setBucketName(blob.getBucket())
+          .setObjectName(blob.getName())
+          .build();
+      builder.add(GcsItemInfo.builder()
+          .setItemId(id)
+          .setSize(blob.getSize())
+          .setContentGeneration(blob.getGeneration())
+          .build());
+      if (builder.build().size() >= maxResults && maxResults > 0) {
+        break;
+      }
+    }
+    return builder.build();
+  }
+
   BucketProperties getBucketProperties(String bucketName) throws IOException {
     checkNotNull(bucketName, "bucketName cannot be null");
     try {
