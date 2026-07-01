@@ -47,6 +47,22 @@ public abstract class GcsFileInfo {
     return new AutoValue_GcsFileInfo.Builder();
   }
 
+  public static GcsFileInfo createRootInfo() {
+    return builder()
+        .setItemInfo(GcsItemInfo.ROOT_INFO)
+        .setUri(URI.create("gs://"))
+        .setAttributes(java.util.Collections.emptyMap())
+        .build();
+  }
+
+  public static GcsFileInfo createBucketInfo(GcsItemInfo bucketInfo) {
+    return builder()
+        .setItemInfo(bucketInfo)
+        .setUri(URI.create("gs://" + bucketInfo.getItemId().getBucketName() + "/"))
+        .setAttributes(java.util.Collections.emptyMap())
+        .build();
+  }
+
   /** Builder for {@link GcsFileInfo}. */
   @AutoValue.Builder
   public abstract static class Builder {

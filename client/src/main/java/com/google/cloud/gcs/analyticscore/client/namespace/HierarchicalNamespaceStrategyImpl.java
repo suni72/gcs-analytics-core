@@ -53,7 +53,7 @@ public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
       try {
         return gcsClient.getGcsItemInfo(objectId);
       } catch (IOException ex) {
-        throw new IOException("File not found: " + id, ex);
+        throw new java.io.FileNotFoundException("File not found: " + id);
       }
     }
   }

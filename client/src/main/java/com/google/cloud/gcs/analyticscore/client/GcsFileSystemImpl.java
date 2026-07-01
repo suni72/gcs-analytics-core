@@ -154,12 +154,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     return getFileInfo(itemId);
   }
 
-  private static final GcsItemInfo ROOT_INFO =
-      GcsItemInfo.builder()
-          .setItemId(GcsItemId.builder().setBucketName("").setObjectName("").build())
-          .setSize(0)
-          .setInferredDirectory(true)
-          .build();
+
 
   private PathType resolvePathType(GcsItemId id) {
     if (id.getObjectName().isPresent()) {
@@ -182,20 +177,12 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   @Override
   public GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException {
     if (itemId.isRoot()) {
-      return GcsFileInfo.builder()
-          .setItemInfo(ROOT_INFO)
-          .setUri(URI.create("gs://"))
-          .setAttributes(Collections.emptyMap())
-          .build();
+      return GcsFileInfo.createRootInfo();
     }
 
     if (itemId.isBucket()) {
       GcsItemInfo bucketInfo = gcsClient.getBucketInfo(itemId);
-      return GcsFileInfo.builder()
-          .setItemInfo(bucketInfo)
-          .setUri(URI.create("gs://" + itemId.getBucketName() + "/"))
-          .setAttributes(Collections.emptyMap())
-          .build();
+      return GcsFileInfo.createBucketInfo(bucketInfo);
     }
 
     PathType pathType = resolvePathType(itemId);
