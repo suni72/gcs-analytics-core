@@ -23,6 +23,13 @@ import java.util.Optional;
 @AutoValue
 public abstract class GcsItemInfo {
 
+  public static final GcsItemInfo ROOT_INFO =
+      builder()
+          .setItemId(GcsItemId.builder().setBucketName("").setObjectName("").build())
+          .setSize(0)
+          .setInferredDirectory(true)
+          .build();
+
   /** Returns the identifier of the GCS item. */
   public abstract GcsItemId getItemId();
 

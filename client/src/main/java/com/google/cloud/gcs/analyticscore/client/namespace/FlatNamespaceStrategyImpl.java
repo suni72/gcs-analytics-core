@@ -52,7 +52,7 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
             .setInferredDirectory(true)
             .build();
       }
-      throw new IOException("File not found: " + id);
+      throw new java.io.FileNotFoundException("File not found: " + id);
     }
 
     Future<List<GcsItemInfo>> prefixScanFuture =
@@ -75,7 +75,7 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
       } catch (Exception ex) {
         // Interrupted or ExecutionException
       }
-      throw new IOException("File not found: " + id, e);
+      throw new java.io.FileNotFoundException("File not found: " + id);
     }
   }
 
