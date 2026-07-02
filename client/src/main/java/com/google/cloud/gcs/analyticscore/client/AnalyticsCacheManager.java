@@ -52,11 +52,7 @@ public class AnalyticsCacheManager {
         options.isSmallObjectCacheEnabled()
             ? AnalyticsCacheCaffeineImpl.create(options.getSmallObjectCacheMaxSizeBytes(), weigher)
             : AnalyticsCacheNoOpImpl.getInstance();
-    this.bucketPropertiesCache =
-        options.getBucketPropertiesCacheMaxEntryAgeMinutes() > 0
-            ? AnalyticsCacheCaffeineImpl.createWithTtlOnly(
-                options.getBucketPropertiesCacheMaxEntryAgeMinutes(), TimeUnit.MINUTES)
-            : AnalyticsCacheNoOpImpl.getInstance();
+    this.bucketPropertiesCache = AnalyticsCacheCaffeineImpl.createWithTtlOnly(10, TimeUnit.MINUTES);
   }
 
   /**
