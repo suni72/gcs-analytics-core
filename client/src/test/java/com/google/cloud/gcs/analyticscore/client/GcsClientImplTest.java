@@ -30,7 +30,7 @@ import com.google.cloud.NoCredentials;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Bucket;
-import com.google.cloud.storage.BucketInfo;
+import com.google.cloud.storage.BucketInfo.HierarchicalNamespace;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BucketGetOption;
 import com.google.cloud.storage.StorageException;
@@ -342,7 +342,7 @@ class GcsClientImplTest {
   private Bucket mockBucketWithHns(Boolean hnsEnabled) {
     Bucket mockBucket = mock(Bucket.class);
     if (hnsEnabled != null) {
-      BucketInfo.HierarchicalNamespace hns = mock(BucketInfo.HierarchicalNamespace.class);
+      HierarchicalNamespace hns = mock(HierarchicalNamespace.class);
       when(hns.getEnabled()).thenReturn(hnsEnabled);
       when(mockBucket.getHierarchicalNamespace()).thenReturn(hns);
     } else {

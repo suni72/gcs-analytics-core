@@ -24,6 +24,7 @@ import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BucketInfo;
+import com.google.cloud.storage.BucketInfo.HierarchicalNamespace;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
@@ -128,7 +129,7 @@ class GcsClientImpl implements GcsClient {
       }
       boolean hnsEnabled =
           Optional.ofNullable(bucketInfo.getHierarchicalNamespace())
-              .map(BucketInfo.HierarchicalNamespace::getEnabled)
+              .map(HierarchicalNamespace::getEnabled)
               .orElse(false);
       return BucketProperties.create(hnsEnabled);
     } catch (StorageException storageException) {
