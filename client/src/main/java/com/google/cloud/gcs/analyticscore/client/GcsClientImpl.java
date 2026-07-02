@@ -116,8 +116,7 @@ class GcsClientImpl implements GcsClient {
         String.format("Expected gcs object but got %s", itemId));
   }
 
-  @Override
-  public BucketProperties getBucketProperties(String bucketName) throws IOException {
+  BucketProperties getBucketProperties(String bucketName) throws IOException {
     checkNotNull(bucketName, "bucketName cannot be null");
     try {
       BucketInfo bucketInfo =

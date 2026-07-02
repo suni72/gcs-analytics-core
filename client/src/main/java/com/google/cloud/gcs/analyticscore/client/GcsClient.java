@@ -31,11 +31,6 @@ public interface GcsClient {
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
 
-  /**
-   * Retrieves the properties of the specified bucket (e.g., whether it is an HNS bucket or not).
-   */
-  BucketProperties getBucketProperties(String bucketName) throws IOException;
-
   /** Close the client. */
   void close();
 }

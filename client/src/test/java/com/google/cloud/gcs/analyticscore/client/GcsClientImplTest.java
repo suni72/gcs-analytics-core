@@ -260,15 +260,16 @@ class GcsClientImplTest {
 
   @Test
   void getBucketProperties_nullBucketName_throwsNullPointerException() {
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mock(Storage.class));
     NullPointerException e =
-        assertThrows(NullPointerException.class, () -> gcsClient.getBucketProperties(null));
+        assertThrows(NullPointerException.class, () -> localGcsClient.getBucketProperties(null));
     assertThat(e).hasMessageThat().isEqualTo("bucketName cannot be null");
   }
 
   @Test
   void getBucketProperties_hnsEnabled_returnsTrue() throws IOException {
     Storage mockStorage = mock(Storage.class);
-    GcsClient localGcsClient = createClientWithMockStorage(mockStorage);
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     Bucket mockBucket = mockBucketWithHns(true);
     doReturn(mockBucket).when(mockStorage).get(eq("hns-bucket"), any(BucketGetOption.class));
 
@@ -280,7 +281,7 @@ class GcsClientImplTest {
   @Test
   void getBucketProperties_hnsDisabled_returnsFalse() throws IOException {
     Storage mockStorage = mock(Storage.class);
-    GcsClient localGcsClient = createClientWithMockStorage(mockStorage);
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     Bucket mockBucket = mockBucketWithHns(false);
     doReturn(mockBucket).when(mockStorage).get(eq("flat-bucket"), any(BucketGetOption.class));
 
@@ -292,7 +293,7 @@ class GcsClientImplTest {
   @Test
   void getBucketProperties_hnsNull_returnsFalse() throws IOException {
     Storage mockStorage = mock(Storage.class);
-    GcsClient localGcsClient = createClientWithMockStorage(mockStorage);
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     Bucket mockBucket = mockBucketWithHns(null);
     doReturn(mockBucket)
         .when(mockStorage)
@@ -306,7 +307,7 @@ class GcsClientImplTest {
   @Test
   void getBucketProperties_bucketNotFound_throwsIOException() {
     Storage mockStorage = mock(Storage.class);
-    GcsClient localGcsClient = createClientWithMockStorage(mockStorage);
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     doReturn(null).when(mockStorage).get(eq("non-existent-bucket"), any(BucketGetOption.class));
 
     IOException e =
@@ -319,7 +320,7 @@ class GcsClientImplTest {
   @Test
   void getBucketProperties_storageException_throwsIOException() {
     Storage mockStorage = mock(Storage.class);
-    GcsClient localGcsClient = createClientWithMockStorage(mockStorage);
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     doThrow(new StorageException(500, "Internal Error"))
         .when(mockStorage)
         .get(eq("error-bucket"), any(BucketGetOption.class));
@@ -330,7 +331,7 @@ class GcsClientImplTest {
     assertThat(e).hasMessageThat().contains("Unable to access bucket: error-bucket");
   }
 
-  private GcsClient createClientWithMockStorage(Storage mockStorage) {
+  private GcsClientImpl createClientWithMockStorage(Storage mockStorage) {
     return new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
       @Override
       protected Storage createStorage(Optional<Credentials> credentials) {
