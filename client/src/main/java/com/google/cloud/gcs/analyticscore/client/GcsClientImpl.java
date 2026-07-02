@@ -18,6 +18,7 @@ package com.google.cloud.gcs.analyticscore.client;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.auth.Credentials;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
@@ -31,6 +32,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.storage.control.v2.Folder;
+import com.google.storage.control.v2.FolderName;
+import com.google.storage.control.v2.GetFolderRequest;
+import com.google.storage.control.v2.StorageControlClient;
+import com.google.storage.control.v2.StorageControlSettings;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
@@ -46,8 +52,10 @@ class GcsClientImpl implements GcsClient {
 
   @VisibleForTesting Storage storage;
   private final GcsClientOptions clientOptions;
+  private final Optional<Credentials> credentials;
   private Supplier<ExecutorService> executorServiceSupplier;
   private final Telemetry telemetry;
+  private StorageControlClient storageControlClient;
 
   GcsClientImpl(
       Credentials credentials,
@@ -70,6 +78,7 @@ class GcsClientImpl implements GcsClient {
       Supplier<ExecutorService> executorServiceSupplier,
       Telemetry telemetry) {
     this.clientOptions = clientOptions;
+    this.credentials = credentials;
     this.executorServiceSupplier = executorServiceSupplier;
     this.telemetry = telemetry;
     this.storage = createStorage(credentials);
@@ -127,12 +136,31 @@ class GcsClientImpl implements GcsClient {
 
   @Override
   public GcsItemInfo getFolderInfo(GcsItemId itemId) throws IOException {
-    // Basic fallback/stub for now. Storage Control API might be needed for real implementation.
-    Blob blob = storage.get(itemId.getBucketName(), itemId.getObjectName().get());
-    if (blob == null) {
-      throw new IOException("Folder not found: " + itemId);
+    checkArgument(itemId.isGcsObject(), "Expected a folder itemId");
+    String objectName = itemId.getObjectName().orElse("");
+    String folderName =
+        objectName.endsWith("/") ? objectName.substring(0, objectName.length() - 1) : objectName;
+
+    GetFolderRequest request =
+        GetFolderRequest.newBuilder()
+            .setName(FolderName.format("_", itemId.getBucketName(), folderName))
+            .build();
+    try {
+      Folder folder = lazyGetStorageControlClient().getFolder(request);
+      return GcsItemInfo.builder().setItemId(itemId).setSize(0).setNativeHnsFolder(true).build();
+    } catch (Exception e) {
+      throw new IOException("Folder not found: " + itemId, e);
     }
-    return GcsItemInfo.builder().setItemId(itemId).setSize(0).setNativeHnsFolder(true).build();
+  }
+
+  private StorageControlClient lazyGetStorageControlClient() throws IOException {
+    if (this.storageControlClient == null) {
+      StorageControlSettings.Builder builder = StorageControlSettings.newBuilder();
+      this.credentials.ifPresent(
+          c -> builder.setCredentialsProvider(FixedCredentialsProvider.create(c)));
+      this.storageControlClient = StorageControlClient.create(builder.build());
+    }
+    return this.storageControlClient;
   }
 
   @Override
@@ -193,6 +221,13 @@ class GcsClientImpl implements GcsClient {
       storage.close();
     } catch (Exception e) {
       LOG.debug("Exception while closing storage instance", e);
+    }
+    if (storageControlClient != null) {
+      try {
+        storageControlClient.close();
+      } catch (Exception e) {
+        LOG.debug("Exception while closing storageControlClient", e);
+      }
     }
   }
 

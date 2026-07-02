@@ -124,8 +124,10 @@ public class GcsFileSystemImpl implements GcsFileSystem {
         cacheManager.getBucketProperties(bucketName, gcsClient::getBucketProperties);
 
     if (properties.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
+      System.out.println("\n***Using HNS strategy for bucket: " + bucketName + "***\n");
       return hnsStrategy;
     }
+    System.out.println("\n***Using Flat strategy for bucket: " + bucketName + "***\n");
     return flatStrategy;
   }
 
@@ -154,12 +156,11 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     return getFileInfo(itemId);
   }
 
-
-
   private PathType resolvePathType(GcsItemId id) {
     if (id.getObjectName().isPresent()) {
       String name = id.getObjectName().get();
       if (name.endsWith("/")) {
+        System.out.println("\n***Path is directory: " + name + "***\n");
         return PathType.DIRECTORY;
       }
       if (name.endsWith(".parquet")
@@ -168,6 +169,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
           || name.endsWith(".json")
           || name.endsWith(".orc")
           || name.endsWith("_SUCCESS")) {
+        System.out.println("\n***Path is file: " + name + "***\n");
         return PathType.FILE;
       }
     }

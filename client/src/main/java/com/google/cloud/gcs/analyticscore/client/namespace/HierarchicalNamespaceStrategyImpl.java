@@ -33,26 +33,34 @@ public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
   @Override
   public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
     String objectName = id.getObjectName().orElse("");
-    String dirPrefix = objectName.endsWith("/") ? objectName : objectName + "/";
 
-    GcsItemId folderId =
-        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+    if (pathType == PathType.DIRECTORY) {
+      String dirPrefix = objectName.endsWith("/") ? objectName : objectName + "/";
+      GcsItemId folderId =
+          GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+      try {
+        return gcsClient.getFolderInfo(folderId);
+      } catch (IOException e) {
+        throw new java.io.FileNotFoundException("File not found: " + id);
+      }
+    }
+
+    // pathType is UNKNOWN or FILE
+    String name =
+        objectName.endsWith("/") ? objectName.substring(0, objectName.length() - 1) : objectName;
+    GcsItemId objectId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(name).build();
 
     try {
-      return gcsClient.getFolderInfo(folderId);
-    } catch (IOException e) {
+      return gcsClient.getGcsItemInfo(objectId);
+    } catch (IOException ex) {
       // Fallback
-      GcsItemId objectId =
-          GcsItemId.builder()
-              .setBucketName(id.getBucketName())
-              .setObjectName(
-                  objectName.endsWith("/")
-                      ? objectName.substring(0, objectName.length() - 1)
-                      : objectName)
-              .build();
+      String dirPrefix = name + "/";
+      GcsItemId folderId =
+          GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
       try {
-        return gcsClient.getGcsItemInfo(objectId);
-      } catch (IOException ex) {
+        return gcsClient.getFolderInfo(folderId);
+      } catch (IOException e) {
         throw new java.io.FileNotFoundException("File not found: " + id);
       }
     }
