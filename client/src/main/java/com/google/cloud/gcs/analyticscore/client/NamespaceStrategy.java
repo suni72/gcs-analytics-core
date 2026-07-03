@@ -16,4 +16,16 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-interface NamespaceStrategy {}
+import java.io.IOException;
+
+public interface NamespaceStrategy {
+  GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;
+
+  void mkdirs(GcsItemId id) throws IOException;
+
+  void delete(GcsItemId id, boolean recursive) throws IOException;
+
+  void rename(GcsItemId src, GcsItemId dst) throws IOException;
+
+  java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException;
+}

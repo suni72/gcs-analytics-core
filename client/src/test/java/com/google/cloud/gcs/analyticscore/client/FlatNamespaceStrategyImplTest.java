@@ -1,13 +1,9 @@
-package com.google.cloud.gcs.analyticscore.client.namespace;
+package com.google.cloud.gcs.analyticscore.client;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
-import com.google.cloud.gcs.analyticscore.client.GcsClient;
-import com.google.cloud.gcs.analyticscore.client.GcsItemId;
-import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
-import com.google.cloud.gcs.analyticscore.client.PathType;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.io.IOException;
 import java.util.Collections;

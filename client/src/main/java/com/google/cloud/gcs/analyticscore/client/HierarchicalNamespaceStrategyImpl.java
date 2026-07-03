@@ -16,10 +16,68 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
+import java.io.IOException;
+
+public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
+
   private final GcsClient gcsClient;
 
-  HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
+  public HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
     this.gcsClient = gcsClient;
+  }
+
+  @Override
+  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
+    String objectName = id.getObjectName().orElse("");
+
+    if (pathType == PathType.DIRECTORY) {
+      String folderName = UriUtil.ensureTrailingSlash(objectName);
+      GcsItemId folderId =
+          GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(folderName).build();
+      try {
+        return gcsClient.getFolderInfo(folderId);
+      } catch (IOException e) {
+        throw new java.io.FileNotFoundException("File not found: " + id);
+      }
+    }
+
+    // pathType is UNKNOWN or FILE
+    String name = UriUtil.removeTrailingSlash(objectName);
+    GcsItemId objectId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(name).build();
+
+    try {
+      return gcsClient.getGcsItemInfo(objectId);
+    } catch (IOException ex) {
+      // Fallback
+      String dirPrefix = name + "/";
+      GcsItemId folderId =
+          GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+      try {
+        return gcsClient.getFolderInfo(folderId);
+      } catch (IOException e) {
+        throw new java.io.FileNotFoundException("File not found: " + id);
+      }
+    }
+  }
+
+  @Override
+  public void mkdirs(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void delete(GcsItemId id, boolean recursive) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void rename(GcsItemId src, GcsItemId dst) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
   }
 }

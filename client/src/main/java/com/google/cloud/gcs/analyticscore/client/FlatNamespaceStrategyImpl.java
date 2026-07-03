@@ -16,17 +16,82 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-import com.google.common.base.Supplier;
+import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
-final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
+public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
 
   private final GcsClient gcsClient;
-  private final Supplier<ExecutorService> statusExecutorServiceSupplier;
+  private final ExecutorService executorService;
 
-  FlatNamespaceStrategyImpl(
-      GcsClient gcsClient, Supplier<ExecutorService> statusExecutorServiceSupplier) {
+  public FlatNamespaceStrategyImpl(GcsClient gcsClient, ExecutorService executorService) {
     this.gcsClient = gcsClient;
-    this.statusExecutorServiceSupplier = statusExecutorServiceSupplier;
+    this.executorService = executorService;
+  }
+
+  @Override
+  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
+    String objectName = id.getObjectName().orElse("");
+    String dirPrefix = UriUtil.ensureTrailingSlash(objectName);
+
+    GcsItemId prefixId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+
+    if (pathType == PathType.DIRECTORY) {
+      List<GcsItemInfo> children = gcsClient.listObjectInfo(prefixId, 1);
+      if (children != null && !children.isEmpty()) {
+        return GcsItemInfo.builder()
+            .setItemId(prefixId)
+            .setSize(0)
+            .setInferredDirectory(true)
+            .build();
+      }
+      throw new java.io.FileNotFoundException("File not found: " + id);
+    }
+
+    Future<List<GcsItemInfo>> prefixScanFuture =
+        executorService.submit(() -> gcsClient.listObjectInfo(prefixId, 1));
+
+    try {
+      GcsItemInfo directInfo = gcsClient.getGcsItemInfo(id);
+      prefixScanFuture.cancel(true);
+      return directInfo;
+    } catch (IOException e) {
+      try {
+        List<GcsItemInfo> children = prefixScanFuture.get();
+        if (children != null && !children.isEmpty()) {
+          return GcsItemInfo.builder()
+              .setItemId(prefixId)
+              .setSize(0)
+              .setInferredDirectory(true)
+              .build();
+        }
+      } catch (Exception ex) {
+        // Interrupted or ExecutionException
+      }
+      throw new java.io.FileNotFoundException("File not found: " + id);
+    }
+  }
+
+  @Override
+  public void mkdirs(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void delete(GcsItemId id, boolean recursive) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public void rename(GcsItemId src, GcsItemId dst) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  @Override
+  public java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException {
+    throw new UnsupportedOperationException("Not implemented yet");
   }
 }

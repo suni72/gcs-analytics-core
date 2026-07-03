@@ -51,4 +51,20 @@ final class UriUtil {
     }
     return GcsItemId.builder().setBucketName(bucketName).setObjectName(relativePath).build();
   }
+
+  /** Ensures that the given path ends with a trailing slash. */
+  static String ensureTrailingSlash(String path) {
+    if (path == null) {
+      return null;
+    }
+    return path.endsWith("/") ? path : path + "/";
+  }
+
+  /** Removes the trailing slash from the given path, if present. */
+  static String removeTrailingSlash(String path) {
+    if (path == null) {
+      return null;
+    }
+    return path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+  }
 }

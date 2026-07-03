@@ -169,8 +169,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     return getFileInfo(itemId);
   }
 
-
-
   private PathType resolvePathType(GcsItemId id) {
     if (id.getObjectName().isPresent()) {
       String name = id.getObjectName().get();
