@@ -25,12 +25,11 @@ import java.util.Map;
 @AutoValue
 public abstract class GcsCacheOptions {
 
-  private static final String FOOTER_CACHE_ENABLED_KEY = "analytics-core.footer.cache.enabled";
-  private static final String FOOTER_CACHE_MAX_SIZE_BYTES_KEY =
+  static final String FOOTER_CACHE_ENABLED_KEY = "analytics-core.footer.cache.enabled";
+  static final String FOOTER_CACHE_MAX_SIZE_BYTES_KEY =
       "analytics-core.footer.cache.max-size-bytes";
-  private static final String SMALL_FILE_CACHE_ENABLED_KEY =
-      "analytics-core.small-file.cache.enabled";
-  private static final String SMALL_FILE_CACHE_MAX_SIZE_BYTES_KEY =
+  static final String SMALL_FILE_CACHE_ENABLED_KEY = "analytics-core.small-file.cache.enabled";
+  static final String SMALL_FILE_CACHE_MAX_SIZE_BYTES_KEY =
       "analytics-core.small-file.cache.max-size-bytes";
 
   private static final long KB = 1024L;

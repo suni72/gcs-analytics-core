@@ -28,14 +28,6 @@ class GcsCacheOptionsTest {
   private static final long KB = 1024L;
   private static final long MB = 1024L * KB;
 
-  private static final String FOOTER_CACHE_ENABLED_KEY = "gcs.analytics-core.footer.cache.enabled";
-  private static final String FOOTER_CACHE_MAX_SIZE_BYTES_KEY =
-      "gcs.analytics-core.footer.cache.max-size-bytes";
-  private static final String SMALL_OBJECT_CACHE_ENABLED_KEY =
-      "gcs.analytics-core.small-file.cache.enabled";
-  private static final String SMALL_OBJECT_CACHE_MAX_SIZE_BYTES_KEY =
-      "gcs.analytics-core.small-file.cache.max-size-bytes";
-
   @Test
   void build_defaultValues_succeeds() {
     GcsCacheOptions options = GcsCacheOptions.builder().build();
@@ -86,10 +78,16 @@ class GcsCacheOptionsTest {
     long smallObjectCacheMaxSizeBytes = 100 * MB;
 
     Map<String, String> map = new HashMap<>();
-    map.put(FOOTER_CACHE_ENABLED_KEY, String.valueOf(footerCacheEnabled));
-    map.put(FOOTER_CACHE_MAX_SIZE_BYTES_KEY, String.valueOf(footerCacheMaxSizeBytes));
-    map.put(SMALL_OBJECT_CACHE_ENABLED_KEY, String.valueOf(smallObjectCacheEnabled));
-    map.put(SMALL_OBJECT_CACHE_MAX_SIZE_BYTES_KEY, String.valueOf(smallObjectCacheMaxSizeBytes));
+    map.put("gcs." + GcsCacheOptions.FOOTER_CACHE_ENABLED_KEY, String.valueOf(footerCacheEnabled));
+    map.put(
+        "gcs." + GcsCacheOptions.FOOTER_CACHE_MAX_SIZE_BYTES_KEY,
+        String.valueOf(footerCacheMaxSizeBytes));
+    map.put(
+        "gcs." + GcsCacheOptions.SMALL_FILE_CACHE_ENABLED_KEY,
+        String.valueOf(smallObjectCacheEnabled));
+    map.put(
+        "gcs." + GcsCacheOptions.SMALL_FILE_CACHE_MAX_SIZE_BYTES_KEY,
+        String.valueOf(smallObjectCacheMaxSizeBytes));
 
     GcsCacheOptions options = GcsCacheOptions.createFromOptions(map, "gcs.");
 
@@ -114,7 +112,7 @@ class GcsCacheOptionsTest {
   @Test
   void createFromOptions_malformedInteger_throwsNumberFormatException() {
     Map<String, String> map = new HashMap<>();
-    map.put(FOOTER_CACHE_MAX_SIZE_BYTES_KEY, "not-a-number");
+    map.put("gcs." + GcsCacheOptions.FOOTER_CACHE_MAX_SIZE_BYTES_KEY, "not-a-number");
 
     assertThrows(NumberFormatException.class, () -> GcsCacheOptions.createFromOptions(map, "gcs."));
   }

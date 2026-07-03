@@ -32,24 +32,36 @@ public abstract class GcsItemInfo {
   /** Generation ID of the object when the metadata is read. */
   public abstract Optional<Long> getContentGeneration();
 
-  /** Indicates whether this is a simulated directory. */
-  public abstract boolean isInferredDirectory();
+  public enum ItemType {
+    /** A standard storage object. */
+    OBJECT,
+    /**
+     * An inferred directory, typically represented by a trailing slash in its name or empty object.
+     */
+    INFERRED_DIRECTORY,
+    /** A native Hierarchical Namespace (HNS) folder. */
+    NATIVE_FOLDER
+  }
 
-  /**
-   * Indicates whether the item is a natively created folder in a Hierarchical Namespace (HNS)
-   * enabled bucket.
-   */
-  public abstract boolean isNativeHnsFolder();
+  /** Returns the type of this item. */
+  public abstract ItemType getItemType();
 
   /** Returns the custom extended attributes (metadata) associated with the item. */
   public abstract ImmutableMap<String, byte[]> getExtendedAttributes();
+
+  public boolean isInferredDirectory() {
+    return getItemType() == ItemType.INFERRED_DIRECTORY;
+  }
+
+  public boolean isNativeHnsFolder() {
+    return getItemType() == ItemType.NATIVE_FOLDER;
+  }
 
   public static Builder builder() {
     // By default, set size to -1, indicating a non-existent item.
     return new AutoValue_GcsItemInfo.Builder()
         .setSize(-1L)
-        .setInferredDirectory(false)
-        .setNativeHnsFolder(false)
+        .setItemType(ItemType.OBJECT)
         .setExtendedAttributes(ImmutableMap.of());
   }
 
@@ -63,9 +75,7 @@ public abstract class GcsItemInfo {
 
     public abstract Builder setContentGeneration(long contentGeneration);
 
-    public abstract Builder setInferredDirectory(boolean isInferredDirectory);
-
-    public abstract Builder setNativeHnsFolder(boolean isNativeHnsFolder);
+    public abstract Builder setItemType(ItemType itemType);
 
     public abstract Builder setExtendedAttributes(ImmutableMap<String, byte[]> extendedAttributes);
 
