@@ -20,15 +20,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
 
   private final GcsClient gcsClient;
-  private final ExecutorService executorService;
+  private final Supplier<ExecutorService> statusExecutorServiceSupplier;
 
-  public FlatNamespaceStrategyImpl(GcsClient gcsClient, ExecutorService executorService) {
+  public FlatNamespaceStrategyImpl(
+      GcsClient gcsClient, Supplier<ExecutorService> statusExecutorServiceSupplier) {
     this.gcsClient = gcsClient;
-    this.executorService = executorService;
+    this.statusExecutorServiceSupplier = statusExecutorServiceSupplier;
   }
 
   @Override
@@ -52,7 +54,7 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
     }
 
     Future<List<GcsItemInfo>> prefixScanFuture =
-        executorService.submit(() -> gcsClient.listObjectInfo(prefixId, 1));
+        statusExecutorServiceSupplier.get().submit(() -> gcsClient.listObjectInfo(prefixId, 1));
 
     try {
       GcsItemInfo directInfo = gcsClient.getGcsItemInfo(id);

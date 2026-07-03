@@ -34,6 +34,7 @@ class HierarchicalNamespaceStrategyImplTest {
     GcsItemInfo folderInfo =
         GcsItemInfo.builder().setItemId(dirId).setSize(0L).setContentGeneration(1L).build();
 
+    when(mockClient.getGcsItemInfo(id)).thenThrow(new IOException("Not found"));
     when(mockClient.getFolderInfo(dirId)).thenReturn(folderInfo);
 
     GcsItemInfo result = strategy.getFileInfo(id, PathType.UNKNOWN);
@@ -49,7 +50,6 @@ class HierarchicalNamespaceStrategyImplTest {
     GcsItemId dirId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("dir/subdir/").build();
 
-    when(mockClient.getFolderInfo(dirId)).thenThrow(new IOException("Not a folder"));
     GcsItemInfo objectInfo =
         GcsItemInfo.builder().setItemId(id).setSize(100L).setContentGeneration(1L).build();
     when(mockClient.getGcsItemInfo(id)).thenReturn(objectInfo);
