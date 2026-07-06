@@ -27,7 +27,7 @@ public abstract class GcsItemInfo {
       builder()
           .setItemId(GcsItemId.builder().setBucketName("").setObjectName("").build())
           .setSize(0)
-          .setInferredDirectory(true)
+          .setItemType(ItemType.INFERRED_DIRECTORY)
           .build();
 
   /** Returns the identifier of the GCS item. */

@@ -17,6 +17,7 @@
 package com.google.cloud.gcs.analyticscore.client;
 
 import java.io.IOException;
+import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -47,7 +48,7 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
         return GcsItemInfo.builder()
             .setItemId(prefixId)
             .setSize(0)
-            .setInferredDirectory(true)
+            .setItemType(ItemType.INFERRED_DIRECTORY)
             .build();
       }
       throw new java.io.FileNotFoundException("File not found: " + id);
@@ -67,7 +68,7 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
           return GcsItemInfo.builder()
               .setItemId(prefixId)
               .setSize(0)
-              .setInferredDirectory(true)
+              .setItemType(ItemType.INFERRED_DIRECTORY)
               .build();
         }
       } catch (Exception ex) {
@@ -77,23 +78,4 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
     }
   }
 
-  @Override
-  public void mkdirs(GcsItemId id) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
-  public void delete(GcsItemId id, boolean recursive) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
-  public void rename(GcsItemId src, GcsItemId dst) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
-  public java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
 }

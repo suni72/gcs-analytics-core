@@ -61,23 +61,4 @@ public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
     }
   }
 
-  @Override
-  public void mkdirs(GcsItemId id) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
-  public void delete(GcsItemId id, boolean recursive) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
-  public void rename(GcsItemId src, GcsItemId dst) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
-
-  @Override
-  public java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException {
-    throw new UnsupportedOperationException("Not implemented yet");
-  }
 }
