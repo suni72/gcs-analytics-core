@@ -60,5 +60,4 @@ public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
       }
     }
   }
-
 }

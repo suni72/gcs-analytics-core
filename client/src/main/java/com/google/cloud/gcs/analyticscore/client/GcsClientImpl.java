@@ -17,11 +17,11 @@ package com.google.cloud.gcs.analyticscore.client;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.auth.Credentials;
+import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
 import com.google.cloud.gcs.analyticscore.client.GcsReadChannel.ItemInfoProvider;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.storage.Blob;
@@ -136,7 +136,11 @@ class GcsClientImpl implements GcsClient {
     if (bucketInfo == null) {
       throw new IOException("Bucket not found: " + itemId.getBucketName());
     }
-    return GcsItemInfo.builder().setItemId(itemId).setSize(0).setItemType(ItemType.INFERRED_DIRECTORY).build();
+    return GcsItemInfo.builder()
+        .setItemId(itemId)
+        .setSize(0)
+        .setItemType(ItemType.INFERRED_DIRECTORY)
+        .build();
   }
 
   @Override
@@ -151,13 +155,18 @@ class GcsClientImpl implements GcsClient {
             .build();
     try {
       lazyGetStorageControlClient().getFolder(request);
-      return GcsItemInfo.builder().setItemId(itemId).setSize(0).setNativeHnsFolder(true).build();
+      return GcsItemInfo.builder()
+          .setItemId(itemId)
+          .setSize(0)
+          .setItemType(ItemType.NATIVE_FOLDER)
+          .build();
     } catch (Exception e) {
       throw new IOException("Folder not found: " + itemId, e);
     }
   }
 
-  private StorageControlClient lazyGetStorageControlClient() throws IOException {
+  @VisibleForTesting
+  StorageControlClient lazyGetStorageControlClient() throws IOException {
     if (this.storageControlClient == null) {
       StorageControlSettings.Builder builder = StorageControlSettings.newBuilder();
       this.credentials.ifPresent(

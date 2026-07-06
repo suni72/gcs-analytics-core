@@ -20,5 +20,4 @@ import java.io.IOException;
 
 public interface NamespaceStrategy {
   GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;
-
 }

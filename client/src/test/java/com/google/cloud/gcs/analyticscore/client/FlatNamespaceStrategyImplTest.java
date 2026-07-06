@@ -25,7 +25,8 @@ class FlatNamespaceStrategyImplTest {
 
   @BeforeEach
   void setUp() {
-    strategy = new FlatNamespaceStrategyImpl(mockClient, MoreExecutors.newDirectExecutorService());
+    strategy =
+        new FlatNamespaceStrategyImpl(mockClient, () -> MoreExecutors.newDirectExecutorService());
   }
 
   @Test

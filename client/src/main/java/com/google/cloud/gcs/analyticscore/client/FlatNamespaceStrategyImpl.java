@@ -16,8 +16,8 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-import java.io.IOException;
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -77,5 +77,4 @@ public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
       throw new java.io.FileNotFoundException("File not found: " + id);
     }
   }
-
 }
