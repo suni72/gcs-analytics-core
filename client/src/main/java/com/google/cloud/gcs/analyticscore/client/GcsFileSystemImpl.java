@@ -19,9 +19,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auth.Credentials;
-import com.google.cloud.gcs.analyticscore.client.namespace.FlatNamespaceStrategyImpl;
-import com.google.cloud.gcs.analyticscore.client.namespace.HierarchicalNamespaceStrategyImpl;
-import com.google.cloud.gcs.analyticscore.client.namespace.NamespaceStrategy;
 import com.google.cloud.gcs.analyticscore.common.GcsAnalyticsCoreTelemetryConstants;
 import com.google.cloud.gcs.analyticscore.common.telemetry.LoggingTelemetryOptions;
 import com.google.cloud.gcs.analyticscore.common.telemetry.LoggingTelemetryReporter;
@@ -53,6 +50,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   private final Telemetry telemetry;
   private final AnalyticsCacheManager cacheManager;
+  private final AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider;
 
   private final FlatNamespaceStrategyImpl flatStrategy = new FlatNamespaceStrategyImpl();
   private final HierarchicalNamespaceStrategyImpl hnsStrategy =
@@ -63,14 +61,16 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
+    GcsClientImpl clientImpl =
+        new GcsClientImpl(
+            fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
             GcsAnalyticsCoreTelemetryConstants.Metric.GCS_CLIENT_CREATE_DURATION,
             Collections.emptyMap(),
-            recorder ->
-                new GcsClientImpl(
-                    fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry));
+            recorder -> clientImpl);
+    this.bucketPropertiesProvider = clientImpl::getBucketProperties;
   }
 
   public GcsFileSystemImpl(Credentials credentials, GcsFileSystemOptions fileSystemOptions) {
@@ -78,26 +78,32 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
+    GcsClientImpl clientImpl =
+        new GcsClientImpl(
+            credentials,
+            fileSystemOptions.getGcsClientOptions(),
+            executorServiceSupplier,
+            telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
             GcsAnalyticsCoreTelemetryConstants.Metric.GCS_CLIENT_CREATE_DURATION,
             Collections.emptyMap(),
-            recorder ->
-                new GcsClientImpl(
-                    credentials,
-                    fileSystemOptions.getGcsClientOptions(),
-                    executorServiceSupplier,
-                    telemetry));
+            recorder -> clientImpl);
+    this.bucketPropertiesProvider = clientImpl::getBucketProperties;
   }
 
   @VisibleForTesting
-  GcsFileSystemImpl(GcsClient gcsClient, GcsFileSystemOptions fileSystemOptions) {
+  GcsFileSystemImpl(
+      GcsClient gcsClient,
+      AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider,
+      GcsFileSystemOptions fileSystemOptions) {
     this(
         gcsClient,
         fileSystemOptions,
         createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions()),
-        new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions()));
+        new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions()),
+        bucketPropertiesProvider);
   }
 
   @VisibleForTesting
@@ -105,17 +111,19 @@ public class GcsFileSystemImpl implements GcsFileSystem {
       GcsClient gcsClient,
       GcsFileSystemOptions fileSystemOptions,
       Telemetry telemetry,
-      AnalyticsCacheManager cacheManager) {
+      AnalyticsCacheManager cacheManager,
+      AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider) {
     this.gcsClient = gcsClient;
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
+    this.bucketPropertiesProvider = bucketPropertiesProvider;
   }
 
   NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
     BucketProperties properties =
-        cacheManager.getBucketProperties(bucketName, gcsClient::getBucketProperties);
+        cacheManager.getBucketProperties(bucketName, bucketPropertiesProvider);
 
     if (properties.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
       return hnsStrategy;
