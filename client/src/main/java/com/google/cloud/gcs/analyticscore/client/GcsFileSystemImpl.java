@@ -45,24 +45,25 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   private final GcsClient gcsClient;
   private final GcsFileSystemOptions fileSystemOptions;
-  private final Supplier<ExecutorService> executorServiceSupplier;
+  private final Supplier<ExecutorService> readExecutorServiceSupplier;
+  private final Supplier<ExecutorService> statusExecutorServiceSupplier;
 
   private final Telemetry telemetry;
   private final AnalyticsCacheManager cacheManager;
   private final AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider;
 
-  private final FlatNamespaceStrategyImpl flatStrategy = new FlatNamespaceStrategyImpl();
-  private final HierarchicalNamespaceStrategyImpl hnsStrategy =
-      new HierarchicalNamespaceStrategyImpl();
+  private final FlatNamespaceStrategyImpl flatStrategy;
+  private final HierarchicalNamespaceStrategyImpl hnsStrategy;
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
-    this.executorServiceSupplier = initializeExecutionServiceSupplier();
+    this.readExecutorServiceSupplier = initializeReadExecutionServiceSupplier();
+    this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
     GcsClientImpl clientImpl =
         new GcsClientImpl(
-            fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry);
+            fileSystemOptions.getGcsClientOptions(), readExecutorServiceSupplier, telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
@@ -70,18 +71,22 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             Collections.emptyMap(),
             recorder -> clientImpl);
     this.bucketPropertiesProvider = clientImpl::getBucketProperties;
+    this.flatStrategy =
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.statusExecutorServiceSupplier);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   public GcsFileSystemImpl(Credentials credentials, GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
-    this.executorServiceSupplier = initializeExecutionServiceSupplier();
+    this.readExecutorServiceSupplier = initializeReadExecutionServiceSupplier();
+    this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
     GcsClientImpl clientImpl =
         new GcsClientImpl(
             credentials,
             fileSystemOptions.getGcsClientOptions(),
-            executorServiceSupplier,
+            readExecutorServiceSupplier,
             telemetry);
     this.gcsClient =
         telemetry.measure(
@@ -90,6 +95,9 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             Collections.emptyMap(),
             recorder -> clientImpl);
     this.bucketPropertiesProvider = clientImpl::getBucketProperties;
+    this.flatStrategy =
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.statusExecutorServiceSupplier);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   @VisibleForTesting
@@ -114,10 +122,14 @@ public class GcsFileSystemImpl implements GcsFileSystem {
       AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider) {
     this.gcsClient = gcsClient;
     this.fileSystemOptions = fileSystemOptions;
-    this.executorServiceSupplier = initializeExecutionServiceSupplier();
+    this.readExecutorServiceSupplier = initializeReadExecutionServiceSupplier();
+    this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
     this.bucketPropertiesProvider = bucketPropertiesProvider;
+    this.flatStrategy =
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.statusExecutorServiceSupplier);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   @VisibleForTesting
@@ -200,14 +212,19 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   @Override
   public void close() {
-    ExecutorService executorService = executorServiceSupplier.get();
-    executorService.shutdown();
+    ExecutorService readExecutorService = readExecutorServiceSupplier.get();
+    ExecutorService statusExecutorService = statusExecutorServiceSupplier.get();
+    readExecutorService.shutdown();
+    statusExecutorService.shutdown();
     try {
-      if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
-        executorService.shutdownNow();
+      if (!readExecutorService.awaitTermination(10, TimeUnit.SECONDS)
+          || !statusExecutorService.awaitTermination(10, TimeUnit.SECONDS)) {
+        readExecutorService.shutdownNow();
+        statusExecutorService.shutdownNow();
       }
     } catch (InterruptedException e) {
-      executorService.shutdownNow();
+      readExecutorService.shutdownNow();
+      statusExecutorService.shutdownNow();
       Thread.currentThread().interrupt();
     }
     gcsClient.close();
@@ -232,7 +249,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   }
 
   @VisibleForTesting
-  Supplier<ExecutorService> initializeExecutionServiceSupplier() {
+  Supplier<ExecutorService> initializeReadExecutionServiceSupplier() {
     return Suppliers.memoize(
         () ->
             new ThreadPoolExecutor(
@@ -245,5 +262,34 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     .setNameFormat("gcs-filesystem-range-pool-%d")
                     .setDaemon(true)
                     .build()));
+  }
+
+  @VisibleForTesting
+  Supplier<ExecutorService> initializeStatusExecutionServiceSupplier() {
+    return Suppliers.memoize(
+        () -> {
+          if (fileSystemOptions.isStatusParallelEnabled()) {
+            return createCachedExecutor();
+          }
+          return new LazyExecutorService();
+        });
+  }
+
+  private static ExecutorService createCachedExecutor() {
+    ThreadPoolExecutor service =
+        new ThreadPoolExecutor(
+            /* corePoolSize= */ 2,
+            /* maximumPoolSize= */ Integer.MAX_VALUE,
+            /* keepAliveTime= */ 30,
+            TimeUnit.SECONDS,
+            new java.util.concurrent.SynchronousQueue<>(),
+            new ThreadFactoryBuilder()
+                .setNameFormat("gcs-filesystem-status-pool-%d")
+                .setDaemon(true)
+                .build());
+    // allowCoreThreadTimeOut needs to be enabled for cases where the encapsulating class does not
+    // properly shut down the executor, preventing thread leaks.
+    service.allowCoreThreadTimeOut(true);
+    return service;
   }
 }

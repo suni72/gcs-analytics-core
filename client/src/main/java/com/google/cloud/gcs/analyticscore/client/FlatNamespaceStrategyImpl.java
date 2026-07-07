@@ -16,4 +16,17 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-class FlatNamespaceStrategyImpl implements NamespaceStrategy {}
+import com.google.common.base.Supplier;
+import java.util.concurrent.ExecutorService;
+
+final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
+
+  private final GcsClient gcsClient;
+  private final Supplier<ExecutorService> statusExecutorServiceSupplier;
+
+  FlatNamespaceStrategyImpl(
+      GcsClient gcsClient, Supplier<ExecutorService> statusExecutorServiceSupplier) {
+    this.gcsClient = gcsClient;
+    this.statusExecutorServiceSupplier = statusExecutorServiceSupplier;
+  }
+}
