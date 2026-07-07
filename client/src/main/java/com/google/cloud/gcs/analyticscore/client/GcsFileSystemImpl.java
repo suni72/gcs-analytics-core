@@ -134,6 +134,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   @VisibleForTesting
   NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
+    checkNotNull(bucketName, "bucketName cannot be null");
+    checkNotNull(bucketPropertiesProvider, "bucketPropertiesProvider cannot be null");
     BucketProperties properties =
         cacheManager.getBucketProperties(bucketName, bucketPropertiesProvider);
 
@@ -217,9 +219,12 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     readExecutorService.shutdown();
     statusExecutorService.shutdown();
     try {
-      if (!readExecutorService.awaitTermination(10, TimeUnit.SECONDS)
-          || !statusExecutorService.awaitTermination(10, TimeUnit.SECONDS)) {
+      boolean readTerminated = readExecutorService.awaitTermination(10, TimeUnit.SECONDS);
+      boolean statusTerminated = statusExecutorService.awaitTermination(10, TimeUnit.SECONDS);
+      if (!readTerminated) {
         readExecutorService.shutdownNow();
+      }
+      if (!statusTerminated) {
         statusExecutorService.shutdownNow();
       }
     } catch (InterruptedException e) {
