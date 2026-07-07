@@ -78,8 +78,8 @@ class GcsFileSystemOptionsTest {
 
     GcsCacheOptions cacheOptions = options.getGcsCacheOptions();
     assertThat(cacheOptions.isFooterCacheEnabled()).isFalse();
-    assertThat(cacheOptions.getFooterCacheMaxSizeBytes()).isEqualTo(500 * MB);
-    assertThat(cacheOptions.isSmallObjectCacheEnabled()).isTrue();
+    assertThat(cacheOptions.getFooterCacheMaxSizeBytes()).isEqualTo(100 * MB);
+    assertThat(cacheOptions.isSmallObjectCacheEnabled()).isFalse();
     assertThat(cacheOptions.getSmallObjectCacheMaxSizeBytes()).isEqualTo(200 * MB);
   }
 }

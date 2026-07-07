@@ -23,9 +23,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.google.cloud.NoCredentials;
-import com.google.cloud.gcs.analyticscore.client.namespace.FlatNamespaceStrategyImpl;
-import com.google.cloud.gcs.analyticscore.client.namespace.HierarchicalNamespaceStrategyImpl;
-import com.google.cloud.gcs.analyticscore.client.namespace.NamespaceStrategy;
 import com.google.cloud.gcs.analyticscore.common.telemetry.CustomTelemetryOptions;
 import com.google.cloud.gcs.analyticscore.common.telemetry.LoggingTelemetryOptions;
 import com.google.cloud.gcs.analyticscore.common.telemetry.LoggingTelemetryReporter;
@@ -68,11 +65,14 @@ class GcsFileSystemImplTest {
       GcsFileSystemOptions.builder().setGcsClientOptions(TEST_GCS_CLIENT_OPTIONS).build();
 
   @Mock private GcsClient mockClient;
+  @Mock private AnalyticsCacheManager.BucketPropertiesLoader mockBucketPropertiesProvider;
   private GcsFileSystem gcsFileSystem;
 
   @BeforeEach
   void setUp() {
-    gcsFileSystem = new GcsFileSystemImpl(mockClient, TEST_GCS_FILESYSTEM_OPTIONS);
+    gcsFileSystem =
+        new GcsFileSystemImpl(
+            mockClient, mockBucketPropertiesProvider, TEST_GCS_FILESYSTEM_OPTIONS);
   }
 
   @AfterEach
@@ -336,7 +336,8 @@ class GcsFileSystemImplTest {
     ExecutorService mockExecutorService = mock(ExecutorService.class);
     when(mockExecutorService.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(true);
     GcsFileSystemImpl fileSystemWithMockExecutor =
-        new GcsFileSystemImpl(mockClient, TEST_GCS_FILESYSTEM_OPTIONS) {
+        new GcsFileSystemImpl(
+            mockClient, mockBucketPropertiesProvider, TEST_GCS_FILESYSTEM_OPTIONS) {
           @Override
           Supplier<ExecutorService> initializeExecutionServiceSupplier() {
             return () -> mockExecutorService;
@@ -357,7 +358,8 @@ class GcsFileSystemImplTest {
     ExecutorService mockExecutorService = mock(ExecutorService.class);
     when(mockExecutorService.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(false);
     GcsFileSystemImpl fileSystemWithMockExecutor =
-        new GcsFileSystemImpl(mockClient, TEST_GCS_FILESYSTEM_OPTIONS) {
+        new GcsFileSystemImpl(
+            mockClient, mockBucketPropertiesProvider, TEST_GCS_FILESYSTEM_OPTIONS) {
           @Override
           Supplier<ExecutorService> initializeExecutionServiceSupplier() {
             return () -> mockExecutorService;
@@ -379,7 +381,8 @@ class GcsFileSystemImplTest {
     when(mockExecutorService.awaitTermination(anyLong(), any(TimeUnit.class)))
         .thenThrow(new InterruptedException());
     GcsFileSystemImpl fileSystemWithMockExecutor =
-        new GcsFileSystemImpl(mockClient, TEST_GCS_FILESYSTEM_OPTIONS) {
+        new GcsFileSystemImpl(
+            mockClient, mockBucketPropertiesProvider, TEST_GCS_FILESYSTEM_OPTIONS) {
           @Override
           Supplier<ExecutorService> initializeExecutionServiceSupplier() {
             return () -> mockExecutorService;
@@ -558,15 +561,15 @@ class GcsFileSystemImplTest {
   }
 
   @Test
-  void resolveStrategy_hnsEnabledInPropertiesAndApiEnabled_returnsHnsStrategy()
-      throws IOException {
+  void resolveStrategy_hnsEnabledInPropertiesAndApiEnabled_returnsHnsStrategy() throws IOException {
     GcsFileSystemOptions options =
         GcsFileSystemOptions.builder()
             .setGcsClientOptions(TEST_GCS_CLIENT_OPTIONS)
             .setHnsApiEnabled(true)
             .build();
-    try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketProperties(TEST_BUCKET))
+    try (GcsFileSystemImpl fs =
+        new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
+      when(mockBucketPropertiesProvider.load(TEST_BUCKET))
           .thenReturn(BucketProperties.create(true));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(HierarchicalNamespaceStrategyImpl.class);
@@ -581,8 +584,9 @@ class GcsFileSystemImplTest {
             .setGcsClientOptions(TEST_GCS_CLIENT_OPTIONS)
             .setHnsApiEnabled(false)
             .build();
-    try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketProperties(TEST_BUCKET))
+    try (GcsFileSystemImpl fs =
+        new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
+      when(mockBucketPropertiesProvider.load(TEST_BUCKET))
           .thenReturn(BucketProperties.create(true));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
@@ -597,8 +601,9 @@ class GcsFileSystemImplTest {
             .setGcsClientOptions(TEST_GCS_CLIENT_OPTIONS)
             .setHnsApiEnabled(true)
             .build();
-    try (GcsFileSystemImpl fs = new GcsFileSystemImpl(mockClient, options)) {
-      when(mockClient.getBucketProperties(TEST_BUCKET))
+    try (GcsFileSystemImpl fs =
+        new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
+      when(mockBucketPropertiesProvider.load(TEST_BUCKET))
           .thenReturn(BucketProperties.create(false));
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
