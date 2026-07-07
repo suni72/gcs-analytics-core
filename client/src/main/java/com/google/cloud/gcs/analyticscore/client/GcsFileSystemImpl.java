@@ -60,9 +60,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
-    GcsClientImpl clientImpl =
-        new GcsClientImpl(
-            fileSystemOptions.getGcsClientOptions(), readExecutorServiceSupplier, telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
@@ -85,12 +82,6 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
-    GcsClientImpl clientImpl =
-        new GcsClientImpl(
-            credentials,
-            fileSystemOptions.getGcsClientOptions(),
-            readExecutorServiceSupplier,
-            telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),

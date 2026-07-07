@@ -18,6 +18,6 @@ package com.google.cloud.gcs.analyticscore.client;
 
 import java.io.IOException;
 
-public interface NamespaceStrategy {
+interface NamespaceStrategy {
   GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;
 }

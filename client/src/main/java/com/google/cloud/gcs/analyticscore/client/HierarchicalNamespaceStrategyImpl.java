@@ -18,11 +18,11 @@ package com.google.cloud.gcs.analyticscore.client;
 
 import java.io.IOException;
 
-public class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
+final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
 
   private final GcsClient gcsClient;
 
-  public HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
+  HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
     this.gcsClient = gcsClient;
   }
 

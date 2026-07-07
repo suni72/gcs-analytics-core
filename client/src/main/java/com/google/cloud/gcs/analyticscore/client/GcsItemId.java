@@ -47,17 +47,14 @@ public abstract class GcsItemId {
   }
 
   public boolean isGcsObject() {
-    return !this.getBucketName().isEmpty()
-        && this.getObjectName().isPresent()
-        && !this.getObjectName().get().isEmpty();
+    return !getBucketName().isEmpty() && !getObjectName().orElse("").isEmpty();
   }
 
   public boolean isBucket() {
-    return !this.getBucketName().isEmpty()
-        && (this.getObjectName().isEmpty() || this.getObjectName().get().isEmpty());
+    return !getBucketName().isEmpty() && getObjectName().orElse("").isEmpty();
   }
 
   public boolean isRoot() {
-    return this.getBucketName().isEmpty();
+    return getBucketName().isEmpty();
   }
 }

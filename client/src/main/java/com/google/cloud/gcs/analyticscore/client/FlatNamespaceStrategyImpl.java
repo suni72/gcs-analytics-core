@@ -17,18 +17,18 @@
 package com.google.cloud.gcs.analyticscore.client;
 
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
+import com.google.common.base.Supplier;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.function.Supplier;
 
-public class FlatNamespaceStrategyImpl implements NamespaceStrategy {
+final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
 
   private final GcsClient gcsClient;
   private final Supplier<ExecutorService> statusExecutorServiceSupplier;
 
-  public FlatNamespaceStrategyImpl(
+  FlatNamespaceStrategyImpl(
       GcsClient gcsClient, Supplier<ExecutorService> statusExecutorServiceSupplier) {
     this.gcsClient = gcsClient;
     this.statusExecutorServiceSupplier = statusExecutorServiceSupplier;
