@@ -47,6 +47,14 @@ public abstract class GcsItemId {
   }
 
   public boolean isGcsObject() {
-    return this.getBucketName() != null && !this.getObjectName().isEmpty();
+    return !getBucketName().isEmpty() && !getObjectName().orElse("").isEmpty();
+  }
+
+  public boolean isBucket() {
+    return !getBucketName().isEmpty() && getObjectName().orElse("").isEmpty();
+  }
+
+  public boolean isRoot() {
+    return getBucketName().isEmpty();
   }
 }

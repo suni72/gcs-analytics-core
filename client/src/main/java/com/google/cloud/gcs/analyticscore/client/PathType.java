@@ -16,8 +16,9 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-import java.io.IOException;
-
-interface NamespaceStrategy {
-  GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;
+/** An optimization hint indicating the known type of a path to bypass redundant metadata checks. */
+public enum PathType {
+  UNKNOWN,
+  FILE,
+  DIRECTORY
 }

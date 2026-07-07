@@ -447,4 +447,53 @@ class GcsClientImplTest {
 
     assertThat(e).hasMessageThat().contains("Unable to access blob");
   }
+
+  @Test
+  void getBucketInfo_returnsInfo() throws IOException {
+    Storage mockStorage = mock(Storage.class);
+    Bucket mockBucket = mock(Bucket.class);
+    when(mockStorage.get("test-bucket")).thenReturn(mockBucket);
+
+    GcsClient client =
+        new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return mockStorage;
+          }
+        };
+
+    GcsItemId bucketId = GcsItemId.builder().setBucketName("test-bucket").build();
+    GcsItemInfo info = client.getBucketInfo(bucketId);
+    assertThat(info.getItemId()).isEqualTo(bucketId);
+    assertThat(info.getItemType()).isEqualTo(GcsItemInfo.ItemType.INFERRED_DIRECTORY);
+  }
+
+  @Test
+  void getFolderInfo_returnsInfo() throws IOException {
+    com.google.storage.control.v2.StorageControlClient mockControlClient =
+        mock(com.google.storage.control.v2.StorageControlClient.class);
+    com.google.storage.control.v2.Folder mockFolder =
+        mock(com.google.storage.control.v2.Folder.class);
+    when(mockControlClient.getFolder(any(com.google.storage.control.v2.GetFolderRequest.class)))
+        .thenReturn(mockFolder);
+
+    GcsClient client =
+        new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return mock(Storage.class);
+          }
+
+          @Override
+          com.google.storage.control.v2.StorageControlClient lazyGetStorageControlClient() {
+            return mockControlClient;
+          }
+        };
+
+    GcsItemId folderId =
+        GcsItemId.builder().setBucketName("test-bucket").setObjectName("folder/").build();
+    GcsItemInfo info = client.getFolderInfo(folderId);
+    assertThat(info.getItemId()).isEqualTo(folderId);
+    assertThat(info.getItemType()).isEqualTo(GcsItemInfo.ItemType.NATIVE_FOLDER);
+  }
 }

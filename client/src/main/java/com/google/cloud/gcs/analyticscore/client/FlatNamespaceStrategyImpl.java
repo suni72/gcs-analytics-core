@@ -16,8 +16,12 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
+import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
 import com.google.common.base.Supplier;
+import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
 
@@ -28,5 +32,49 @@ final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
       GcsClient gcsClient, Supplier<ExecutorService> statusExecutorServiceSupplier) {
     this.gcsClient = gcsClient;
     this.statusExecutorServiceSupplier = statusExecutorServiceSupplier;
+  }
+
+  @Override
+  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
+    String objectName = id.getObjectName().orElse("");
+    String dirPrefix = UriUtil.ensureTrailingSlash(objectName);
+
+    GcsItemId prefixId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(dirPrefix).build();
+
+    if (pathType == PathType.DIRECTORY) {
+      List<GcsItemInfo> children = gcsClient.listObjectInfo(prefixId, 1);
+      if (children != null && !children.isEmpty()) {
+        return GcsItemInfo.builder()
+            .setItemId(prefixId)
+            .setSize(0)
+            .setItemType(ItemType.INFERRED_DIRECTORY)
+            .build();
+      }
+      throw new java.io.FileNotFoundException("File not found: " + id);
+    }
+
+    Future<List<GcsItemInfo>> prefixScanFuture =
+        statusExecutorServiceSupplier.get().submit(() -> gcsClient.listObjectInfo(prefixId, 1));
+
+    try {
+      GcsItemInfo directInfo = gcsClient.getGcsItemInfo(id);
+      prefixScanFuture.cancel(true);
+      return directInfo;
+    } catch (IOException e) {
+      try {
+        List<GcsItemInfo> children = prefixScanFuture.get();
+        if (children != null && !children.isEmpty()) {
+          return GcsItemInfo.builder()
+              .setItemId(prefixId)
+              .setSize(0)
+              .setItemType(ItemType.INFERRED_DIRECTORY)
+              .build();
+        }
+      } catch (Exception ex) {
+        // Interrupted or ExecutionException
+      }
+      throw new java.io.FileNotFoundException("File not found: " + id);
+    }
   }
 }
