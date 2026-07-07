@@ -18,6 +18,7 @@ These properties govern the core connections, identity, and access parameters be
 | `project-id` | The Google Cloud project ID for the GCS client. | - |
 | `user-project` | Project ID whose Google Cloud Project's billing account should be charged for the operation being executed. | - |
 | `decryption-key` | Decryption key for the object. | - |
+| `analytics-core.hns.api.enable` | Controls whether the Hierarchical Namespace (HNS) API is enabled for operations. | `false` |
 
 ### Caching and Prefetching
 

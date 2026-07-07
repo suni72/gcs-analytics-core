@@ -121,6 +121,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.bucketPropertiesProvider = bucketPropertiesProvider;
   }
 
+  @VisibleForTesting
   NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
     BucketProperties properties =
         cacheManager.getBucketProperties(bucketName, bucketPropertiesProvider);
