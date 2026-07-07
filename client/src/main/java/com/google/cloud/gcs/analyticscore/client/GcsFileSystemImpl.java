@@ -61,16 +61,17 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
-    GcsClientImpl clientImpl =
-        new GcsClientImpl(
-            fileSystemOptions.getGcsClientOptions(), readExecutorServiceSupplier, telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
             GcsAnalyticsCoreTelemetryConstants.Metric.GCS_CLIENT_CREATE_DURATION,
             Collections.emptyMap(),
-            recorder -> clientImpl);
-    this.bucketPropertiesProvider = clientImpl::getBucketProperties;
+            recorder ->
+                new GcsClientImpl(
+                    fileSystemOptions.getGcsClientOptions(),
+                    readExecutorServiceSupplier,
+                    telemetry));
+    this.bucketPropertiesProvider = ((GcsClientImpl) this.gcsClient)::getBucketProperties;
     this.flatStrategy =
         new FlatNamespaceStrategyImpl(this.gcsClient, this.statusExecutorServiceSupplier);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
@@ -82,19 +83,18 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.statusExecutorServiceSupplier = initializeStatusExecutionServiceSupplier();
     this.telemetry = createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions());
     this.cacheManager = new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions());
-    GcsClientImpl clientImpl =
-        new GcsClientImpl(
-            credentials,
-            fileSystemOptions.getGcsClientOptions(),
-            readExecutorServiceSupplier,
-            telemetry);
     this.gcsClient =
         telemetry.measure(
             GcsAnalyticsCoreTelemetryConstants.Operation.GCS_CLIENT_CREATE.name(),
             GcsAnalyticsCoreTelemetryConstants.Metric.GCS_CLIENT_CREATE_DURATION,
             Collections.emptyMap(),
-            recorder -> clientImpl);
-    this.bucketPropertiesProvider = clientImpl::getBucketProperties;
+            recorder ->
+                new GcsClientImpl(
+                    credentials,
+                    fileSystemOptions.getGcsClientOptions(),
+                    readExecutorServiceSupplier,
+                    telemetry));
+    this.bucketPropertiesProvider = ((GcsClientImpl) this.gcsClient)::getBucketProperties;
     this.flatStrategy =
         new FlatNamespaceStrategyImpl(this.gcsClient, this.statusExecutorServiceSupplier);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
