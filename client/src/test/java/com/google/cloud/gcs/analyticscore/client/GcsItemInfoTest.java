@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,12 @@ package com.google.cloud.gcs.analyticscore.client;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
+import org.junit.jupiter.api.Test;
 
-@RunWith(JUnit4.class)
-public class GcsItemInfoTest {
+class GcsItemInfoTest {
 
   @Test
-  public void testIsInferredDirectory() {
+  void isInferredDirectory() {
     GcsItemInfo itemInfo =
         GcsItemInfo.builder()
             .setItemId(GcsItemId.builder().setBucketName("bucket").setObjectName("dir/").build())
@@ -37,7 +34,7 @@ public class GcsItemInfoTest {
   }
 
   @Test
-  public void testIsNativeHnsFolder() {
+  void isNativeHnsFolder() {
     GcsItemInfo itemInfo =
         GcsItemInfo.builder()
             .setItemId(GcsItemId.builder().setBucketName("bucket").setObjectName("folder/").build())
@@ -49,7 +46,7 @@ public class GcsItemInfoTest {
   }
 
   @Test
-  public void testIsObject() {
+  void isObject() {
     GcsItemInfo itemInfo =
         GcsItemInfo.builder()
             .setItemId(GcsItemId.builder().setBucketName("bucket").setObjectName("obj").build())

@@ -128,7 +128,8 @@ class GcsClientImpl implements GcsClient {
               bucketName,
               Storage.BucketGetOption.fields(Storage.BucketField.HIERARCHICAL_NAMESPACE));
       if (bucketInfo == null) {
-        throw new IOException("Bucket not found: " + bucketName);
+        LOG.debug("Bucket {} not found, HNS API will be disabled", bucketName);
+        return BucketProperties.create(false);
       }
       boolean hnsEnabled =
           Optional.ofNullable(bucketInfo.getHierarchicalNamespace())
@@ -136,6 +137,10 @@ class GcsClientImpl implements GcsClient {
               .orElse(false);
       return BucketProperties.create(hnsEnabled);
     } catch (StorageException storageException) {
+      if (storageException.getCode() == 403) {
+        LOG.debug("Access to bucket {} is forbidden (403), HNS API will be disabled", bucketName);
+        return BucketProperties.create(false);
+      }
       throw new IOException("Unable to access bucket: " + bucketName, storageException);
     }
   }

@@ -32,6 +32,12 @@ import java.util.concurrent.TimeUnit;
  */
 public class AnalyticsCacheManager {
 
+  /**
+   * TTL for bucket properties cache in minutes. A 10-minute TTL is used because a bucket's
+   * Hierarchical Namespace configuration is immutable unless the bucket is deleted and re-created.
+   */
+  private static final long BUCKET_PROPERTIES_CACHE_TTL_MINUTES = 10;
+
   private final AnalyticsCache<GcsItemId, ByteBuffer> footerCache;
   private final AnalyticsCache<GcsItemId, ByteBuffer> smallObjectCache;
   private final AnalyticsCache<String, BucketProperties> bucketPropertiesCache;
@@ -52,7 +58,9 @@ public class AnalyticsCacheManager {
         options.isSmallObjectCacheEnabled()
             ? AnalyticsCacheCaffeineImpl.create(options.getSmallObjectCacheMaxSizeBytes(), weigher)
             : AnalyticsCacheNoOpImpl.getInstance();
-    this.bucketPropertiesCache = AnalyticsCacheCaffeineImpl.createWithTtlOnly(10, TimeUnit.MINUTES);
+    this.bucketPropertiesCache =
+        AnalyticsCacheCaffeineImpl.createWithTtlOnly(
+            BUCKET_PROPERTIES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
   }
 
   /**

@@ -309,16 +309,27 @@ class GcsClientImplTest {
   }
 
   @Test
-  void getBucketProperties_bucketNotFound_throwsIOException() {
+  void getBucketProperties_bucketNotFound_returnsDisabledHns() throws Exception {
     Storage mockStorage = mock(Storage.class);
     GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     doReturn(null).when(mockStorage).get(eq("non-existent-bucket"), any(BucketGetOption.class));
 
-    IOException e =
-        assertThrows(
-            IOException.class, () -> localGcsClient.getBucketProperties("non-existent-bucket"));
+    BucketProperties properties = localGcsClient.getBucketProperties("non-existent-bucket");
 
-    assertThat(e).hasMessageThat().contains("Bucket not found: non-existent-bucket");
+    assertThat(properties.isHnsEnabled()).isFalse();
+  }
+
+  @Test
+  void getBucketProperties_forbiddenAccess_returnsDisabledHns() throws Exception {
+    Storage mockStorage = mock(Storage.class);
+    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
+    doThrow(new StorageException(403, "Forbidden"))
+        .when(mockStorage)
+        .get(eq("forbidden-bucket"), any(BucketGetOption.class));
+
+    BucketProperties properties = localGcsClient.getBucketProperties("forbidden-bucket");
+
+    assertThat(properties.isHnsEnabled()).isFalse();
   }
 
   @Test
