@@ -20,7 +20,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.WritableByteChannel;
-import java.util.Map;
 
 public interface GcsFileSystem extends AutoCloseable {
 

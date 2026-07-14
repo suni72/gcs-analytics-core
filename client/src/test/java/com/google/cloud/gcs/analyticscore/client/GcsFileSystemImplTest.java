@@ -609,7 +609,9 @@ class GcsFileSystemImplTest {
         new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
       when(mockBucketPropertiesProvider.load(TEST_BUCKET))
           .thenReturn(BucketProperties.create(true));
+
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
+
       assertThat(strategy).isInstanceOf(HierarchicalNamespaceStrategyImpl.class);
     }
   }
@@ -626,7 +628,9 @@ class GcsFileSystemImplTest {
         new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
       when(mockBucketPropertiesProvider.load(TEST_BUCKET))
           .thenReturn(BucketProperties.create(true));
+
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
+
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
     }
   }
@@ -643,7 +647,9 @@ class GcsFileSystemImplTest {
         new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
       when(mockBucketPropertiesProvider.load(TEST_BUCKET))
           .thenReturn(BucketProperties.create(false));
+
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
+
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
     }
   }

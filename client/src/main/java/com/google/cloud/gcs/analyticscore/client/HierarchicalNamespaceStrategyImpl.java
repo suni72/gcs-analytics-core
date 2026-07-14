@@ -16,4 +16,10 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
-class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {}
+final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
+  private final GcsClient gcsClient;
+
+  HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
+    this.gcsClient = gcsClient;
+  }
+}

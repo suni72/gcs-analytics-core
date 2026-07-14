@@ -18,7 +18,6 @@ These properties govern the core connections, identity, and access parameters be
 | `project-id` | The Google Cloud project ID for the GCS client. | - |
 | `user-project` | Project ID whose Google Cloud Project's billing account should be charged for the operation being executed. | - |
 | `decryption-key` | Decryption key for the object. | - |
-| `analytics-core.hns.api.enable` | Controls whether the Hierarchical Namespace (HNS) API is enabled for operations. | `false` |
 
 ### Caching and Prefetching
 
@@ -50,6 +49,13 @@ These parameters fine-tune the low-level data streaming behavior. They allow you
 | `analytics-core.adaptive-read.sequential-read-threshold` | Threshold for number of sequential reads to switch to sequential mode. | `3` |
 | `analytics-core.random-read.min-request-size` | Minimum request size for random reads. If the requested read size is smaller, it reads up to this size. | `131072` (128 KB) |
 
+### Metadata and Directory Operations
+
+These properties configure how the library handles file system metadata operations like directory creation, listing or file status retrieval.
+
+| Property | Description | Default Value |
+| :--- | :--- | :--- |
+| `analytics-core.hns.api.enable` | Controls whether the Hierarchical Namespace (HNS) API is enabled for operations. | `false` |
 
 ### Telemetry and Monitoring
 
