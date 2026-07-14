@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 class LoggingTelemetryOptionsTest {
 
   @Test
-  void loggingTelemetryOptionsDefaultValues() {
+  void testLoggingTelemetryOptionsDefaultValues() {
     LoggingTelemetryOptions options = LoggingTelemetryOptions.builder().build();
 
     assertThat(options.isEnabled()).isFalse();
@@ -33,7 +33,7 @@ class LoggingTelemetryOptionsTest {
   }
 
   @Test
-  void createFromOptions_NoOptions() {
+  void testCreateFromOptions_NoOptions() {
     Map<String, String> options = new HashMap<>();
     Optional<LoggingTelemetryOptions> telemetryOptions =
         LoggingTelemetryOptions.createFromOptions(options, "prefix.");
@@ -42,7 +42,7 @@ class LoggingTelemetryOptionsTest {
   }
 
   @Test
-  void createFromOptions_WithAllOptions() {
+  void testCreateFromOptions_WithAllOptions() {
     Map<String, String> options = new HashMap<>();
     options.put("prefix.telemetry.logging.enabled", "true");
     options.put("prefix.telemetry.logging.level", "ERROR");
@@ -57,7 +57,7 @@ class LoggingTelemetryOptionsTest {
   }
 
   @Test
-  void createFromOptions_WithInvalidLevel_fallsbackToDefaults() {
+  void testCreateFromOptions_WithInvalidLevel_fallsbackToDefaults() {
     Map<String, String> options = new HashMap<>();
     options.put("prefix.telemetry.logging.enabled", "true");
     options.put("prefix.telemetry.logging.level", "INVALID_LEVEL");
