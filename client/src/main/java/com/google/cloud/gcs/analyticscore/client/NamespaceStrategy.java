@@ -16,4 +16,17 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
+/**
+ * Strategy interface for namespace operations.
+ *
+ * <p>Methods for directory operations will be added in follow-up PRs. These methods will include:
+ *
+ * <ul>
+ *   <li>{@code GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;}
+ *   <li>{@code void mkdirs(GcsItemId id) throws IOException;}
+ *   <li>{@code void delete(GcsItemId id, boolean recursive) throws IOException;}
+ *   <li>{@code void rename(GcsItemId src, GcsItemId dst) throws IOException;}
+ *   <li>{@code java.util.List<GcsItemInfo> listStatus(GcsItemId id) throws IOException;}
+ * </ul>
+ */
 interface NamespaceStrategy {}

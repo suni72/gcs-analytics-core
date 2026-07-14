@@ -128,10 +128,14 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
     checkNotNull(bucketName, "bucketName cannot be null");
     checkNotNull(bucketPropertiesProvider, "bucketPropertiesProvider cannot be null");
+    if (!fileSystemOptions.isHnsApiEnabled()) {
+      return flatStrategy;
+    }
+
     BucketProperties properties =
         cacheManager.getBucketProperties(bucketName, bucketPropertiesProvider);
 
-    if (properties.isHnsEnabled() && fileSystemOptions.isHnsApiEnabled()) {
+    if (properties.isHnsEnabled()) {
       return hnsStrategy;
     }
     return flatStrategy;

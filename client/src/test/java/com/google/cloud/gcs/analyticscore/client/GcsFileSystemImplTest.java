@@ -617,8 +617,7 @@ class GcsFileSystemImplTest {
   }
 
   @Test
-  void resolveStrategy_hnsEnabledInPropertiesButApiDisabled_returnsFlatStrategy()
-      throws IOException {
+  void resolveStrategy_hnsApiDisabled_returnsFlatStrategy() throws IOException {
     GcsFileSystemOptions options =
         GcsFileSystemOptions.builder()
             .setGcsClientOptions(TEST_GCS_CLIENT_OPTIONS)
@@ -626,12 +625,11 @@ class GcsFileSystemImplTest {
             .build();
     try (GcsFileSystemImpl fs =
         new GcsFileSystemImpl(mockClient, mockBucketPropertiesProvider, options)) {
-      when(mockBucketPropertiesProvider.load(TEST_BUCKET))
-          .thenReturn(BucketProperties.create(true));
 
       NamespaceStrategy strategy = fs.resolveStrategy(TEST_BUCKET);
 
       assertThat(strategy).isInstanceOf(FlatNamespaceStrategyImpl.class);
+      verify(mockBucketPropertiesProvider, never()).load(anyString());
     }
   }
 
