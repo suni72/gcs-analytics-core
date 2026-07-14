@@ -50,6 +50,10 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   private final Telemetry telemetry;
   private final AnalyticsCacheManager cacheManager;
+  private final AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider;
+
+  private final FlatNamespaceStrategyImpl flatStrategy;
+  private final HierarchicalNamespaceStrategyImpl hnsStrategy;
 
   public GcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions) {
     this.fileSystemOptions = fileSystemOptions;
@@ -64,6 +68,9 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             recorder ->
                 new GcsClientImpl(
                     fileSystemOptions.getGcsClientOptions(), executorServiceSupplier, telemetry));
+    this.bucketPropertiesProvider = ((GcsClientImpl) this.gcsClient)::getBucketProperties;
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   public GcsFileSystemImpl(Credentials credentials, GcsFileSystemOptions fileSystemOptions) {
@@ -82,15 +89,22 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     fileSystemOptions.getGcsClientOptions(),
                     executorServiceSupplier,
                     telemetry));
+    this.bucketPropertiesProvider = ((GcsClientImpl) this.gcsClient)::getBucketProperties;
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
   @VisibleForTesting
-  GcsFileSystemImpl(GcsClient gcsClient, GcsFileSystemOptions fileSystemOptions) {
+  GcsFileSystemImpl(
+      GcsClient gcsClient,
+      AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider,
+      GcsFileSystemOptions fileSystemOptions) {
     this(
         gcsClient,
         fileSystemOptions,
         createTelemetry(fileSystemOptions.getAnalyticsCoreTelemetryOptions()),
-        new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions()));
+        new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions()),
+        bucketPropertiesProvider);
   }
 
   @VisibleForTesting
@@ -98,12 +112,33 @@ public class GcsFileSystemImpl implements GcsFileSystem {
       GcsClient gcsClient,
       GcsFileSystemOptions fileSystemOptions,
       Telemetry telemetry,
-      AnalyticsCacheManager cacheManager) {
+      AnalyticsCacheManager cacheManager,
+      AnalyticsCacheManager.BucketPropertiesLoader bucketPropertiesProvider) {
     this.gcsClient = gcsClient;
     this.fileSystemOptions = fileSystemOptions;
     this.executorServiceSupplier = initializeExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
+    this.bucketPropertiesProvider = bucketPropertiesProvider;
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
+    this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
+  }
+
+  @VisibleForTesting
+  NamespaceStrategy resolveStrategy(String bucketName) throws IOException {
+    checkNotNull(bucketName, "bucketName cannot be null");
+    checkNotNull(bucketPropertiesProvider, "bucketPropertiesProvider cannot be null");
+    if (!fileSystemOptions.isHnsApiEnabled()) {
+      return flatStrategy;
+    }
+
+    BucketProperties properties =
+        cacheManager.getBucketProperties(bucketName, bucketPropertiesProvider);
+
+    if (properties.isHnsEnabled()) {
+      return hnsStrategy;
+    }
+    return flatStrategy;
   }
 
   @Override
@@ -161,6 +196,16 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   @Override
   public AnalyticsCacheManager getCacheManager() {
     return cacheManager;
+  }
+
+  @VisibleForTesting
+  FlatNamespaceStrategyImpl getFlatStrategy() {
+    return flatStrategy;
+  }
+
+  @VisibleForTesting
+  HierarchicalNamespaceStrategyImpl getHnsStrategy() {
+    return hnsStrategy;
   }
 
   @Override

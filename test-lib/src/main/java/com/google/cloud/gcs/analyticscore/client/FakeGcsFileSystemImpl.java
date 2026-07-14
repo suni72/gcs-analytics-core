@@ -29,14 +29,21 @@ public class FakeGcsFileSystemImpl extends GcsFileSystemImpl {
   }
 
   private FakeGcsFileSystemImpl(GcsFileSystemOptions fileSystemOptions, Telemetry telemetry) {
-    super(
-        initializeGcsClient(fileSystemOptions, telemetry),
-        fileSystemOptions,
-        telemetry,
-        new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions()));
+    this(fileSystemOptions, telemetry, initializeGcsClient(fileSystemOptions, telemetry));
   }
 
-  private static GcsClient initializeGcsClient(GcsFileSystemOptions options, Telemetry telemetry) {
+  private FakeGcsFileSystemImpl(
+      GcsFileSystemOptions fileSystemOptions, Telemetry telemetry, FakeGcsClientImpl fakeClient) {
+    super(
+        fakeClient,
+        fileSystemOptions,
+        telemetry,
+        new AnalyticsCacheManager(fileSystemOptions.getGcsCacheOptions()),
+        fakeClient::getBucketProperties);
+  }
+
+  private static FakeGcsClientImpl initializeGcsClient(
+      GcsFileSystemOptions options, Telemetry telemetry) {
     Supplier<ExecutorService> executorServiceSupplier =
         Suppliers.ofInstance(Executors.newCachedThreadPool());
     return new FakeGcsClientImpl(options.getGcsClientOptions(), executorServiceSupplier, telemetry);
