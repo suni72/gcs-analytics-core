@@ -327,6 +327,8 @@ class GcsFileSystemImplTest {
     assertThat(readExecutorServiceSupplier.get()).isInstanceOf(ThreadPoolExecutor.class);
     assertThat(((ThreadPoolExecutor) readExecutorServiceSupplier.get()).getCorePoolSize())
         .isEqualTo(16);
+    assertThat(readExecutorServiceSupplier.get())
+        .isSameInstanceAs(readExecutorServiceSupplier.get());
   }
 
   @Test
@@ -340,6 +342,8 @@ class GcsFileSystemImplTest {
     assertThat(listExecutorServiceSupplier).isNotNull();
     assertThat(listExecutorServiceSupplier.get()).isNotNull();
     assertThat(listExecutorServiceSupplier.get()).isInstanceOf(ThreadPoolExecutor.class);
+    assertThat(listExecutorServiceSupplier.get())
+        .isSameInstanceAs(listExecutorServiceSupplier.get());
   }
 
   @Test
