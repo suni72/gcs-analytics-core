@@ -31,4 +31,6 @@ package com.google.cloud.gcs.analyticscore.client;
  *   <li>{@code java.util.List<GcsItemInfo> listRecursive(GcsItemId id) throws IOException;}
  * </ul>
  */
-interface NamespaceStrategy {}
+interface NamespaceStrategy {
+  GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws java.io.IOException;
+}

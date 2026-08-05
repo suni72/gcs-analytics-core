@@ -23,5 +23,25 @@ public enum PathType {
   /** A path that is definitively known to be a directory (e.g., ends with a trailing slash). */
   DIRECTORY,
   /** The path type cannot be definitively determined from its format. */
-  UNKNOWN
+  UNKNOWN;
+
+  public static PathType resolve(GcsItemId itemId) {
+    if (itemId == null || itemId.getObjectName().isEmpty()) {
+      return UNKNOWN;
+    }
+    String objectName = itemId.getObjectName().get();
+    if (objectName.endsWith("/")) {
+      return DIRECTORY;
+    }
+    String lower = objectName.toLowerCase(java.util.Locale.US);
+    if (lower.endsWith(".parquet")
+        || lower.endsWith(".csv")
+        || lower.endsWith(".json")
+        || lower.endsWith(".avro")
+        || lower.endsWith(".orc")
+        || lower.endsWith(".txt")) {
+      return FILE;
+    }
+    return UNKNOWN;
+  }
 }

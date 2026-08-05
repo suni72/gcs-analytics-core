@@ -65,6 +65,10 @@ public abstract class GcsItemInfo {
     return getItemType() == ItemType.NATIVE_FOLDER;
   }
 
+  public static GcsItemInfo createInferredDirectory(GcsItemId itemId) {
+    return builder().setItemId(itemId).setSize(0).setItemType(ItemType.INFERRED_DIRECTORY).build();
+  }
+
   public static Builder builder() {
     // By default, set size to -1, indicating a non-existent item.
     return new AutoValue_GcsItemInfo.Builder()

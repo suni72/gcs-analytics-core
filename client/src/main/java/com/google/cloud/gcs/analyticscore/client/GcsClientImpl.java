@@ -167,11 +167,7 @@ class GcsClientImpl implements GcsClient {
     if (bucketInfo == null) {
       throw new IOException("Bucket not found: " + itemId.getBucketName());
     }
-    return GcsItemInfo.builder()
-        .setItemId(itemId)
-        .setSize(0)
-        .setItemType(ItemType.INFERRED_DIRECTORY)
-        .build();
+    return GcsItemInfo.createInferredDirectory(itemId);
   }
 
   @Override

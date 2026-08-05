@@ -22,4 +22,14 @@ final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
   HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
     this.gcsClient = gcsClient;
   }
+
+  @Override
+  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws java.io.IOException {
+    try {
+      return gcsClient.getFolderInfo(id);
+    } catch (java.io.IOException e) {
+      // Fallback to object lookup
+      return gcsClient.getGcsItemInfo(id);
+    }
+  }
 }
