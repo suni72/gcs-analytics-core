@@ -51,4 +51,11 @@ final class UriUtil {
     }
     return GcsItemId.builder().setBucketName(bucketName).setObjectName(relativePath).build();
   }
+
+  static String removeTrailingSlash(String path) {
+    if (path != null && path.endsWith("/")) {
+      return path.substring(0, path.length() - 1);
+    }
+    return path;
+  }
 }
