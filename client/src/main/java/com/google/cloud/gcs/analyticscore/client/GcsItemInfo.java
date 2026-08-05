@@ -49,6 +49,14 @@ public abstract class GcsItemInfo {
   /** Returns the custom extended attributes (metadata) associated with the item. */
   public abstract ImmutableMap<String, byte[]> getExtendedAttributes();
 
+  /** Returns the creation time of the object in milliseconds since epoch, or 0 if not available. */
+  public abstract long getCreationTime();
+
+  /**
+   * Returns the modification time of the object in milliseconds since epoch, or 0 if not available.
+   */
+  public abstract long getModificationTime();
+
   public boolean isInferredDirectory() {
     return getItemType() == ItemType.INFERRED_DIRECTORY;
   }
@@ -62,7 +70,9 @@ public abstract class GcsItemInfo {
     return new AutoValue_GcsItemInfo.Builder()
         .setSize(-1L)
         .setItemType(ItemType.OBJECT)
-        .setExtendedAttributes(ImmutableMap.of());
+        .setExtendedAttributes(ImmutableMap.of())
+        .setCreationTime(0L)
+        .setModificationTime(0L);
   }
 
   /** Builder for {@link GcsItemInfo}. */
@@ -78,6 +88,10 @@ public abstract class GcsItemInfo {
     public abstract Builder setItemType(ItemType itemType);
 
     public abstract Builder setExtendedAttributes(ImmutableMap<String, byte[]> extendedAttributes);
+
+    public abstract Builder setCreationTime(long creationTime);
+
+    public abstract Builder setModificationTime(long modificationTime);
 
     public abstract GcsItemInfo build();
   }
