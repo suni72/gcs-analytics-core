@@ -82,4 +82,14 @@ class GcsFileSystemOptionsTest {
     assertThat(cacheOptions.isSmallObjectCacheEnabled()).isFalse();
     assertThat(cacheOptions.getSmallObjectCacheMaxSizeBytes()).isEqualTo(200 * MB);
   }
+
+  @Test
+  void createFromOptions_withListParallelEnabledFalse_createsCorrectOptions() {
+    ImmutableMap<String, String> properties =
+        ImmutableMap.of("fs.gs.analytics-core.list.parallel.enabled", "false");
+
+    GcsFileSystemOptions options = GcsFileSystemOptions.createFromOptions(properties, "fs.gs.");
+
+    assertThat(options.isListParallelEnabled()).isFalse();
+  }
 }
