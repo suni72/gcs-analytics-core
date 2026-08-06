@@ -43,6 +43,7 @@ import com.google.storage.control.v2.FolderName;
 import com.google.storage.control.v2.GetFolderRequest;
 import com.google.storage.control.v2.StorageControlClient;
 import com.google.storage.control.v2.StorageControlSettings;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.WritableByteChannel;
 import java.util.List;
@@ -167,7 +168,7 @@ class GcsClientImpl implements GcsClient {
     if (bucketInfo == null) {
       throw new IOException("Bucket not found: " + itemId.getBucketName());
     }
-    return GcsItemInfo.createInferredDirectory(itemId).toBuilder()
+    return GcsItemInfo.createBucket(itemId).toBuilder()
         .setLocation(bucketInfo.getLocation())
         .setStorageClass(
             bucketInfo.getStorageClass() != null ? bucketInfo.getStorageClass().name() : null)
@@ -189,7 +190,7 @@ class GcsClientImpl implements GcsClient {
       return GcsItemInfo.builder()
           .setItemId(itemId)
           .setSize(0)
-          .setItemType(ItemType.NATIVE_FOLDER)
+          .setItemType(ItemType.EXPLICIT_DIRECTORY)
           .build();
     } catch (Exception e) {
       throw new IOException("Folder not found: " + itemId, e);
@@ -360,7 +361,7 @@ class GcsClientImpl implements GcsClient {
     checkArgument(itemId.isGcsObject(), String.format("Expected gcs object got %s", itemId));
     Blob blob = getBlob(itemId.getBucketName(), itemId.getObjectName().get());
     if (blob == null) {
-      throw new IOException("Object not found:" + itemId);
+      throw new FileNotFoundException("Object not found: " + itemId);
     }
     return fromBlob(blob);
   }

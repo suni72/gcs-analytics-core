@@ -96,11 +96,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     readExecutorServiceSupplier,
                     telemetry));
     this.flatStrategy =
-        new FlatNamespaceStrategyImpl(
-            this.gcsClient,
-            fileSystemOptions.isStatusParallelEnabled()
-                ? this.listExecutorServiceSupplier.get()
-                : null);
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.listExecutorServiceSupplier);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -122,11 +118,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     readExecutorServiceSupplier,
                     telemetry));
     this.flatStrategy =
-        new FlatNamespaceStrategyImpl(
-            this.gcsClient,
-            fileSystemOptions.isStatusParallelEnabled()
-                ? this.listExecutorServiceSupplier.get()
-                : null);
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.listExecutorServiceSupplier);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -152,11 +144,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
     this.flatStrategy =
-        new FlatNamespaceStrategyImpl(
-            this.gcsClient,
-            fileSystemOptions.isStatusParallelEnabled()
-                ? this.listExecutorServiceSupplier.get()
-                : null);
+        new FlatNamespaceStrategyImpl(this.gcsClient, this.listExecutorServiceSupplier);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -211,21 +199,39 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   @Override
   public GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException {
-    if (itemId.isBucket()) {
-      return GcsFileInfo.builder()
-          .setItemInfo(gcsClient.getBucketInfo(itemId))
-          .setUri(URI.create("gs://" + itemId.getBucketName()))
-          .setAttributes(Collections.emptyMap())
-          .build();
+    PathType pathType = PathType.resolve(itemId);
+
+    if (pathType == PathType.ROOT) {
+      return createRootFileInfo(itemId);
     }
 
-    PathType pathType = PathType.resolve(itemId);
+    if (pathType == PathType.BUCKET) {
+      GcsItemInfo bucketInfo = gcsClient.getBucketInfo(itemId);
+      return createBucketFileInfo(bucketInfo);
+    }
+
     if (pathType == PathType.FILE) {
       return toGcsFileInfo(gcsClient.getGcsItemInfo(itemId));
     }
 
     NamespaceStrategy strategy = resolveStrategy(itemId.getBucketName());
     return toGcsFileInfo(strategy.getFileInfo(itemId, pathType));
+  }
+
+  private GcsFileInfo createRootFileInfo(GcsItemId itemId) {
+    return GcsFileInfo.builder()
+        .setItemInfo(GcsItemInfo.createRoot(itemId))
+        .setUri(URI.create("gs://"))
+        .setAttributes(Collections.emptyMap())
+        .build();
+  }
+
+  private GcsFileInfo createBucketFileInfo(GcsItemInfo bucketInfo) {
+    return GcsFileInfo.builder()
+        .setItemInfo(bucketInfo)
+        .setUri(URI.create("gs://" + bucketInfo.getItemId().getBucketName()))
+        .setAttributes(Collections.emptyMap())
+        .build();
   }
 
   private GcsFileInfo toGcsFileInfo(GcsItemInfo gcsItemInfo) {

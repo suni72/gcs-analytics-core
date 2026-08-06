@@ -16,66 +16,69 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
+import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
 
+  private static final Logger logger = LoggerFactory.getLogger(FlatNamespaceStrategyImpl.class);
+
   private final GcsClient gcsClient;
-  private final java.util.concurrent.ExecutorService listExecutorService;
+  private final java.util.function.Supplier<java.util.concurrent.ExecutorService>
+      listExecutorServiceSupplier;
 
   FlatNamespaceStrategyImpl(
-      GcsClient gcsClient, java.util.concurrent.ExecutorService listExecutorService) {
+      GcsClient gcsClient,
+      java.util.function.Supplier<java.util.concurrent.ExecutorService>
+          listExecutorServiceSupplier) {
     this.gcsClient = gcsClient;
-    this.listExecutorService = listExecutorService;
+    this.listExecutorServiceSupplier = listExecutorServiceSupplier;
   }
 
   @Override
-  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws java.io.IOException {
-    if (listExecutorService == null) {
-      return getFileInfoSequential(id);
+  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
+    if (pathType == PathType.ROOT || pathType == PathType.BUCKET) {
+      throw new IllegalArgumentException("Path cannot be ROOT or BUCKET type");
     }
 
-    // Launch Parallel Prefix Scan (Max 1, trailing slash) + Direct Lookup for exact path
-    String prefix = id.getObjectName().orElse("") + "/";
-    GcsItemId prefixId =
-        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(prefix).build();
+    java.util.concurrent.ExecutorService listExecutorService = listExecutorServiceSupplier.get();
 
-    java.util.concurrent.Future<GcsItemInfo> directFuture =
-        listExecutorService.submit(() -> gcsClient.getGcsItemInfo(id));
-    java.util.concurrent.Future<GcsItemInfo> prefixFuture =
-        listExecutorService.submit(
-            () -> {
-              java.util.List<GcsItemInfo> list = gcsClient.listObjectInfo(prefixId, 1);
-              if (!list.isEmpty()) {
-                return GcsItemInfo.createInferredDirectory(id);
-              }
-              throw new java.io.IOException("Not found");
-            });
+    // Start a background task to check if this path is an implicit directory (i.e. it has
+    // children).
+    java.util.concurrent.Future<Boolean> implicitDirectoryFuture =
+        listExecutorService.submit(() -> isImplicitDirectory(id));
 
     try {
-      return directFuture.get();
-    } catch (Exception e) {
+      // return direct object metadata if found
+      return gcsClient.getGcsItemInfo(id);
+    } catch (IOException directException) {
+      // The direct object was not found. Wait for the background task to see if it's an implicit
+      // directory instead.
       try {
-        return prefixFuture.get();
-      } catch (Exception ex) {
-        if (e.getCause() instanceof java.io.IOException) {
-          throw (java.io.IOException) e.getCause();
+        if (implicitDirectoryFuture.get()) {
+          return GcsItemInfo.createInferredDirectory(id);
         }
-        throw new java.io.IOException(e.getCause());
+      } catch (Exception fallbackException) {
+        // If the background thread is interrupted or fails, attach the error to the main exception
+        // for visibility
+        directException.addSuppressed(fallbackException);
       }
+
+      throw directException;
     }
   }
 
-  private GcsItemInfo getFileInfoSequential(GcsItemId id) throws java.io.IOException {
+  // Checks if a path is an implicit directory by seeing if any objects exist with it as a prefix
+  private boolean isImplicitDirectory(GcsItemId id) {
+    String prefix = id.getObjectName().orElse("") + "/";
+    GcsItemId prefixId =
+        GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(prefix).build();
     try {
-      return gcsClient.getGcsItemInfo(id);
-    } catch (java.io.IOException e) {
-      String prefix = id.getObjectName().orElse("") + "/";
-      GcsItemId prefixId =
-          GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(prefix).build();
-      java.util.List<GcsItemInfo> list = gcsClient.listObjectInfo(prefixId, 1);
-      if (!list.isEmpty()) {
-        return GcsItemInfo.createInferredDirectory(id);
-      }
-      throw e;
+      return !gcsClient.listObjectInfo(prefixId, 1).isEmpty();
+    } catch (IOException e) {
+      logger.warn("Failed to check if {} is an implicit directory, returning false", id, e);
+      return false;
     }
   }
 }

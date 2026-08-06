@@ -56,8 +56,14 @@ public abstract class GcsItemInfo {
      * An inferred directory, typically represented by a trailing slash in its name or empty object.
      */
     INFERRED_DIRECTORY,
-    /** A native Hierarchical Namespace (HNS) folder. */
-    NATIVE_FOLDER
+    /**
+     * An explicit directory/folder (e.g., an HNS folder or an explicit folder in a flat bucket).
+     */
+    EXPLICIT_DIRECTORY,
+    /** A GCS bucket. */
+    BUCKET,
+    /** The global root namespace. */
+    ROOT
   }
 
   /** Returns the type of this item. */
@@ -78,12 +84,20 @@ public abstract class GcsItemInfo {
     return getItemType() == ItemType.INFERRED_DIRECTORY;
   }
 
-  public boolean isNativeHnsFolder() {
-    return getItemType() == ItemType.NATIVE_FOLDER;
+  public boolean isExplicitDirectory() {
+    return getItemType() == ItemType.EXPLICIT_DIRECTORY;
   }
 
   public static GcsItemInfo createInferredDirectory(GcsItemId itemId) {
     return builder().setItemId(itemId).setSize(0).setItemType(ItemType.INFERRED_DIRECTORY).build();
+  }
+
+  public static GcsItemInfo createBucket(GcsItemId itemId) {
+    return builder().setItemId(itemId).setSize(0).setItemType(ItemType.BUCKET).build();
+  }
+
+  public static GcsItemInfo createRoot(GcsItemId itemId) {
+    return builder().setItemId(itemId).setSize(0).setItemType(ItemType.ROOT).build();
   }
 
   public abstract Builder toBuilder();

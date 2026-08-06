@@ -30,19 +30,19 @@ class GcsItemInfoTest {
             .build();
 
     assertThat(itemInfo.isInferredDirectory()).isTrue();
-    assertThat(itemInfo.isNativeHnsFolder()).isFalse();
+    assertThat(itemInfo.isExplicitDirectory()).isFalse();
   }
 
   @Test
-  void isNativeHnsFolder() {
+  void isExplicitDirectory() {
     GcsItemInfo itemInfo =
         GcsItemInfo.builder()
             .setItemId(GcsItemId.builder().setBucketName("bucket").setObjectName("folder/").build())
-            .setItemType(GcsItemInfo.ItemType.NATIVE_FOLDER)
+            .setItemType(GcsItemInfo.ItemType.EXPLICIT_DIRECTORY)
             .build();
 
     assertThat(itemInfo.isInferredDirectory()).isFalse();
-    assertThat(itemInfo.isNativeHnsFolder()).isTrue();
+    assertThat(itemInfo.isExplicitDirectory()).isTrue();
   }
 
   @Test
@@ -54,6 +54,6 @@ class GcsItemInfoTest {
             .build();
 
     assertThat(itemInfo.isInferredDirectory()).isFalse();
-    assertThat(itemInfo.isNativeHnsFolder()).isFalse();
+    assertThat(itemInfo.isExplicitDirectory()).isFalse();
   }
 }
