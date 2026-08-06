@@ -48,7 +48,15 @@ import org.slf4j.LoggerFactory;
 class GcsClientImpl implements GcsClient {
   private static final Logger LOG = LoggerFactory.getLogger(GcsClientImpl.class);
   private static final List<Storage.BlobField> BLOB_METADATA_FIELDS =
-      ImmutableList.of(Storage.BlobField.GENERATION, Storage.BlobField.SIZE);
+      ImmutableList.of(
+          Storage.BlobField.GENERATION,
+          Storage.BlobField.SIZE,
+          Storage.BlobField.TIME_CREATED,
+          Storage.BlobField.UPDATED,
+          Storage.BlobField.METADATA,
+          Storage.BlobField.METAGENERATION,
+          Storage.BlobField.CONTENT_TYPE,
+          Storage.BlobField.CONTENT_ENCODING);
   private static final String USER_AGENT_PREFIX = "gcs-analytics-core/";
 
   @VisibleForTesting Storage storage;
@@ -219,17 +227,50 @@ class GcsClientImpl implements GcsClient {
     if (blob == null) {
       throw new IOException("Object not found:" + itemId);
     }
-    GcsItemId itemIdWithGeneration =
+    return fromBlob(blob);
+  }
+
+  private GcsItemInfo fromBlob(Blob blob) {
+    GcsItemId id =
         GcsItemId.builder()
             .setContentGeneration(blob.getGeneration())
             .setBucketName(blob.getBucket())
             .setObjectName(blob.getName())
             .build();
-    return GcsItemInfo.builder()
-        .setItemId(itemIdWithGeneration)
-        .setSize(blob.getSize())
-        .setContentGeneration(blob.getGeneration())
-        .build();
+    GcsItemInfo.Builder infoBuilder =
+        GcsItemInfo.builder()
+            .setItemId(id)
+            .setSize(blob.getSize())
+            .setContentGeneration(blob.getGeneration())
+            .setCreationTime(
+                blob.getCreateTimeOffsetDateTime() != null
+                    ? blob.getCreateTimeOffsetDateTime().toInstant().toEpochMilli()
+                    : 0L)
+            .setModificationTime(
+                blob.getUpdateTimeOffsetDateTime() != null
+                    ? blob.getUpdateTimeOffsetDateTime().toInstant().toEpochMilli()
+                    : 0L)
+            .setMetaGeneration(blob.getMetageneration() != null ? blob.getMetageneration() : 0L);
+
+    if (blob.getContentType() != null) {
+      infoBuilder.setContentType(blob.getContentType());
+    }
+    if (blob.getContentEncoding() != null) {
+      infoBuilder.setContentEncoding(blob.getContentEncoding());
+    }
+
+    if (blob.getMetadata() != null) {
+      ImmutableMap.Builder<String, byte[]> xattrs = ImmutableMap.builder();
+      for (java.util.Map.Entry<String, String> entry : blob.getMetadata().entrySet()) {
+        if (entry.getValue() != null) {
+          xattrs.put(
+              entry.getKey(), entry.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+      }
+      infoBuilder.setExtendedAttributes(xattrs.build());
+    }
+
+    return infoBuilder.build();
   }
 
   private Blob getBlob(String bucketName, String objectName) throws IOException {

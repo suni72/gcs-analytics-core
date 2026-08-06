@@ -202,7 +202,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
         .setUri(
             URI.create(
                 BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()).toGsUtilUri()))
-        .setAttributes(Collections.emptyMap())
+        .setAttributes(gcsItemInfo.getExtendedAttributes())
         .build();
   }
 

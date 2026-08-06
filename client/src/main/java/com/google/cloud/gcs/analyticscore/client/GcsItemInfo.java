@@ -49,6 +49,21 @@ public abstract class GcsItemInfo {
   /** Returns the custom extended attributes (metadata) associated with the item. */
   public abstract ImmutableMap<String, byte[]> getExtendedAttributes();
 
+  /** Creation time in milliseconds since epoch. */
+  public abstract long getCreationTime();
+
+  /** Modification time in milliseconds since epoch. */
+  public abstract long getModificationTime();
+
+  /** Meta generation of the object. */
+  public abstract long getMetaGeneration();
+
+  /** Content type of the object. */
+  public abstract Optional<String> getContentType();
+
+  /** Content encoding of the object. */
+  public abstract Optional<String> getContentEncoding();
+
   public boolean isInferredDirectory() {
     return getItemType() == ItemType.INFERRED_DIRECTORY;
   }
@@ -62,7 +77,10 @@ public abstract class GcsItemInfo {
     return new AutoValue_GcsItemInfo.Builder()
         .setSize(-1L)
         .setItemType(ItemType.OBJECT)
-        .setExtendedAttributes(ImmutableMap.of());
+        .setExtendedAttributes(ImmutableMap.of())
+        .setCreationTime(0L)
+        .setModificationTime(0L)
+        .setMetaGeneration(0L);
   }
 
   /** Builder for {@link GcsItemInfo}. */
@@ -78,6 +96,16 @@ public abstract class GcsItemInfo {
     public abstract Builder setItemType(ItemType itemType);
 
     public abstract Builder setExtendedAttributes(ImmutableMap<String, byte[]> extendedAttributes);
+
+    public abstract Builder setCreationTime(long creationTime);
+
+    public abstract Builder setModificationTime(long modificationTime);
+
+    public abstract Builder setMetaGeneration(long metaGeneration);
+
+    public abstract Builder setContentType(String contentType);
+
+    public abstract Builder setContentEncoding(String contentEncoding);
 
     public abstract GcsItemInfo build();
   }
