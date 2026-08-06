@@ -96,6 +96,8 @@ public abstract class GcsItemInfo {
     return builder().setItemId(itemId).setSize(0).setItemType(ItemType.BUCKET).build();
   }
 
+  public static final GcsItemInfo ROOT_INFO = createRoot(GcsItemId.ROOT);
+
   public static GcsItemInfo createRoot(GcsItemId itemId) {
     return builder().setItemId(itemId).setSize(0).setItemType(ItemType.ROOT).build();
   }

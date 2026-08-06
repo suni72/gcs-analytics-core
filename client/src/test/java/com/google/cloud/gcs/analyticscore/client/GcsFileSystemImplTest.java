@@ -316,6 +316,50 @@ class GcsFileSystemImplTest {
   }
 
   @Test
+  void
+      getFileInfo_whenPathTypeIsFileAndDirectLookupFails_fallsThroughToStrategyAndFindsImplicitDirectory()
+          throws IOException {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("data.parquet").build();
+    GcsItemId prefixId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("data.parquet/").build();
+    GcsItemInfo childItem =
+        GcsItemInfo.builder()
+            .setItemId(
+                GcsItemId.builder()
+                    .setBucketName(TEST_BUCKET)
+                    .setObjectName("data.parquet/part-0.parquet")
+                    .build())
+            .setSize(100L)
+            .build();
+    when(mockClient.getGcsItemInfo(eq(itemId)))
+        .thenThrow(new IOException("Object not found: " + itemId));
+    when(mockClient.listObjectInfo(eq(prefixId), eq(1))).thenReturn(ImmutableList.of(childItem));
+
+    GcsFileInfo fileInfo = gcsFileSystem.getFileInfo(itemId);
+
+    assertThat(fileInfo).isNotNull();
+    assertThat(fileInfo.getItemInfo().isInferredDirectory()).isTrue();
+    assertThat(fileInfo.getUri().toString()).isEqualTo("gs://" + TEST_BUCKET + "/data.parquet");
+  }
+
+  @Test
+  void getFileInfo_whenPathTypeIsFileAndDirectLookupFailsAndNotDirectory_throwsException()
+      throws IOException {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("data.parquet").build();
+    GcsItemId prefixId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("data.parquet/").build();
+    when(mockClient.getGcsItemInfo(eq(itemId)))
+        .thenThrow(new IOException("Object not found: " + itemId));
+    when(mockClient.listObjectInfo(eq(prefixId), eq(1))).thenReturn(ImmutableList.of());
+
+    IOException e = assertThrows(IOException.class, () -> gcsFileSystem.getFileInfo(itemId));
+
+    assertThat(e).hasMessageThat().contains("Object not found: " + itemId);
+  }
+
+  @Test
   void initializeReadExecutionServiceSupplier_shouldReturnMemoizedExecutorService() {
     GcsFileSystemImpl fileSystemImpl = (GcsFileSystemImpl) gcsFileSystem;
 

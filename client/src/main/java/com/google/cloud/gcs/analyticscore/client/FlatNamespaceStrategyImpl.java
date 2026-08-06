@@ -17,6 +17,9 @@
 package com.google.cloud.gcs.analyticscore.client;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,13 +28,10 @@ final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
   private static final Logger logger = LoggerFactory.getLogger(FlatNamespaceStrategyImpl.class);
 
   private final GcsClient gcsClient;
-  private final java.util.function.Supplier<java.util.concurrent.ExecutorService>
-      listExecutorServiceSupplier;
+  private final Supplier<ExecutorService> listExecutorServiceSupplier;
 
   FlatNamespaceStrategyImpl(
-      GcsClient gcsClient,
-      java.util.function.Supplier<java.util.concurrent.ExecutorService>
-          listExecutorServiceSupplier) {
+      GcsClient gcsClient, Supplier<ExecutorService> listExecutorServiceSupplier) {
     this.gcsClient = gcsClient;
     this.listExecutorServiceSupplier = listExecutorServiceSupplier;
   }
@@ -42,11 +42,11 @@ final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
       throw new IllegalArgumentException("Path cannot be ROOT or BUCKET type");
     }
 
-    java.util.concurrent.ExecutorService listExecutorService = listExecutorServiceSupplier.get();
+    ExecutorService listExecutorService = listExecutorServiceSupplier.get();
 
     // Start a background task to check if this path is an implicit directory (i.e. it has
     // children).
-    java.util.concurrent.Future<Boolean> implicitDirectoryFuture =
+    Future<Boolean> implicitDirectoryFuture =
         listExecutorService.submit(() -> isImplicitDirectory(id));
 
     try {

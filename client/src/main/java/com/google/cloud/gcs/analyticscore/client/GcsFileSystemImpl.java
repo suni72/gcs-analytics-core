@@ -202,7 +202,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     PathType pathType = PathType.resolve(itemId);
 
     if (pathType == PathType.ROOT) {
-      return createRootFileInfo(itemId);
+      return GcsFileInfo.ROOT_INFO;
     }
 
     if (pathType == PathType.BUCKET) {
@@ -211,19 +211,15 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     }
 
     if (pathType == PathType.FILE) {
-      return toGcsFileInfo(gcsClient.getGcsItemInfo(itemId));
+      try {
+        return toGcsFileInfo(gcsClient.getGcsItemInfo(itemId));
+      } catch (IOException e) {
+        // Failed to get direct file info; fall through to the namespace strategy
+      }
     }
 
     NamespaceStrategy strategy = resolveStrategy(itemId.getBucketName());
     return toGcsFileInfo(strategy.getFileInfo(itemId, pathType));
-  }
-
-  private GcsFileInfo createRootFileInfo(GcsItemId itemId) {
-    return GcsFileInfo.builder()
-        .setItemInfo(GcsItemInfo.createRoot(itemId))
-        .setUri(URI.create("gs://"))
-        .setAttributes(Collections.emptyMap())
-        .build();
   }
 
   private GcsFileInfo createBucketFileInfo(GcsItemInfo bucketInfo) {

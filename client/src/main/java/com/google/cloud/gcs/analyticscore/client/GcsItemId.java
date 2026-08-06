@@ -22,6 +22,8 @@ import java.util.Optional;
 @AutoValue
 public abstract class GcsItemId {
 
+  public static final GcsItemId ROOT = builder().setBucketName("").setObjectName("").build();
+
   // Name of the bucket.
   public abstract String getBucketName();
 

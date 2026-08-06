@@ -16,6 +16,8 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
+import java.io.IOException;
+
 /**
  * Strategy interface for handling directory operations across different namespace models (Flat vs.
  * HNS).
@@ -32,5 +34,5 @@ package com.google.cloud.gcs.analyticscore.client;
  * </ul>
  */
 interface NamespaceStrategy {
-  GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws java.io.IOException;
+  GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;
 }

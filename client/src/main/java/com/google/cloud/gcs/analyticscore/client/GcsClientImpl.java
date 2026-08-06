@@ -20,6 +20,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.FixedHeaderProvider;
+import com.google.api.gax.rpc.NotFoundException;
 import com.google.auth.Credentials;
 import com.google.cloud.gcs.analyticscore.client.GcsItemInfo.ItemType;
 import com.google.cloud.gcs.analyticscore.client.GcsReadChannel.ItemInfoProvider;
@@ -39,6 +40,7 @@ import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.BaseEncoding;
+import com.google.storage.control.v2.Folder;
 import com.google.storage.control.v2.FolderName;
 import com.google.storage.control.v2.GetFolderRequest;
 import com.google.storage.control.v2.StorageControlClient;
@@ -46,6 +48,7 @@ import com.google.storage.control.v2.StorageControlSettings;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.WritableByteChannel;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -163,20 +166,35 @@ class GcsClientImpl implements GcsClient {
 
   @Override
   public GcsItemInfo getBucketInfo(GcsItemId itemId) throws IOException {
+    checkNotNull(itemId, "Item ID must not be null.");
     checkArgument(itemId.isBucket(), "Expected a bucket itemId");
     BucketInfo bucketInfo = storage.get(itemId.getBucketName());
     if (bucketInfo == null) {
-      throw new IOException("Bucket not found: " + itemId.getBucketName());
+      throw new FileNotFoundException("Bucket not found: " + itemId.getBucketName());
     }
-    return GcsItemInfo.createBucket(itemId).toBuilder()
-        .setLocation(bucketInfo.getLocation())
-        .setStorageClass(
-            bucketInfo.getStorageClass() != null ? bucketInfo.getStorageClass().name() : null)
-        .build();
+    GcsItemInfo.Builder builder = GcsItemInfo.createBucket(itemId).toBuilder();
+    if (bucketInfo.getLocation() != null) {
+      builder.setLocation(bucketInfo.getLocation());
+    }
+    if (bucketInfo.getStorageClass() != null) {
+      builder.setStorageClass(bucketInfo.getStorageClass().name());
+    }
+    if (bucketInfo.getCreateTimeOffsetDateTime() != null) {
+      builder.setCreationTime(bucketInfo.getCreateTimeOffsetDateTime().toInstant().toEpochMilli());
+    }
+    if (bucketInfo.getUpdateTimeOffsetDateTime() != null) {
+      builder.setModificationTime(
+          bucketInfo.getUpdateTimeOffsetDateTime().toInstant().toEpochMilli());
+    }
+    if (bucketInfo.getMetageneration() != null) {
+      builder.setMetaGeneration(bucketInfo.getMetageneration());
+    }
+    return builder.build();
   }
 
   @Override
   public GcsItemInfo getFolderInfo(GcsItemId itemId) throws IOException {
+    checkNotNull(itemId, "Item ID must not be null.");
     checkArgument(itemId.isGcsObject(), "Expected a folder itemId");
     String objectName = itemId.getObjectName().orElse("");
     String folderName = UriUtil.removeTrailingSlash(objectName);
@@ -186,12 +204,29 @@ class GcsClientImpl implements GcsClient {
             .setName(FolderName.format("_", itemId.getBucketName(), folderName))
             .build();
     try {
-      lazyGetStorageControlClient().getFolder(request);
+      Folder folder = lazyGetStorageControlClient().getFolder(request);
+      long creationTime =
+          folder.hasCreateTime()
+              ? Instant.ofEpochSecond(
+                      folder.getCreateTime().getSeconds(), folder.getCreateTime().getNanos())
+                  .toEpochMilli()
+              : 0L;
+      long modificationTime =
+          folder.hasUpdateTime()
+              ? Instant.ofEpochSecond(
+                      folder.getUpdateTime().getSeconds(), folder.getUpdateTime().getNanos())
+                  .toEpochMilli()
+              : 0L;
       return GcsItemInfo.builder()
           .setItemId(itemId)
           .setSize(0)
           .setItemType(ItemType.EXPLICIT_DIRECTORY)
+          .setCreationTime(creationTime)
+          .setModificationTime(modificationTime)
+          .setMetaGeneration(folder.getMetageneration())
           .build();
+    } catch (NotFoundException e) {
+      throw new FileNotFoundException("Folder not found: " + itemId);
     } catch (Exception e) {
       throw new IOException("Folder not found: " + itemId, e);
     }

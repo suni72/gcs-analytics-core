@@ -13,25 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.google.cloud.gcs.analyticscore.client;
 
-import java.io.IOException;
+import static com.google.common.truth.Truth.assertThat;
 
-final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
-  private final GcsClient gcsClient;
+import org.junit.jupiter.api.Test;
 
-  HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
-    this.gcsClient = gcsClient;
-  }
+class GcsFileInfoTest {
 
-  @Override
-  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
-    try {
-      return gcsClient.getFolderInfo(id);
-    } catch (IOException e) {
-      // Fallback to object lookup
-      return gcsClient.getGcsItemInfo(id);
-    }
+  @Test
+  void rootInfo_hasRootUriAndRootItemInfo() {
+    GcsFileInfo rootInfo = GcsFileInfo.ROOT_INFO;
+
+    assertThat(rootInfo.getUri()).isEqualTo(GcsFileInfo.GCS_ROOT_URI);
+    assertThat(rootInfo.getItemInfo()).isEqualTo(GcsItemInfo.ROOT_INFO);
+    assertThat(rootInfo.getAttributes()).isEmpty();
   }
 }

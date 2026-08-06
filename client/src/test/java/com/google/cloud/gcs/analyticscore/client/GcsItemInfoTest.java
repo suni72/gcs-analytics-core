@@ -56,4 +56,13 @@ class GcsItemInfoTest {
     assertThat(itemInfo.isInferredDirectory()).isFalse();
     assertThat(itemInfo.isExplicitDirectory()).isFalse();
   }
+
+  @Test
+  void rootInfo_hasRootItemTypeAndZeroSize() {
+    GcsItemInfo rootInfo = GcsItemInfo.ROOT_INFO;
+
+    assertThat(rootInfo.getItemId()).isEqualTo(GcsItemId.ROOT);
+    assertThat(rootInfo.getItemType()).isEqualTo(GcsItemInfo.ItemType.ROOT);
+    assertThat(rootInfo.getSize()).isEqualTo(0L);
+  }
 }
