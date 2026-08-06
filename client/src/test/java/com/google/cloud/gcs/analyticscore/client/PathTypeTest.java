@@ -43,12 +43,23 @@ class PathTypeTest {
 
   @Test
   void resolve_knownExtension_returnsFile() {
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(BUCKET_NAME).setObjectName("foo.parquet").build();
+    for (String ext : new String[] {".parquet", ".csv", ".json", ".avro", ".orc", ".txt"}) {
+      GcsItemId itemId =
+          GcsItemId.builder().setBucketName(BUCKET_NAME).setObjectName("foo" + ext).build();
+
+      PathType result = PathType.resolve(itemId);
+
+      assertThat(result).isEqualTo(PathType.FILE);
+    }
+  }
+
+  @Test
+  void resolve_nullBucketName_returnsRoot() {
+    GcsItemId itemId = GcsItemId.ROOT;
 
     PathType result = PathType.resolve(itemId);
 
-    assertThat(result).isEqualTo(PathType.FILE);
+    assertThat(result).isEqualTo(PathType.ROOT);
   }
 
   @Test

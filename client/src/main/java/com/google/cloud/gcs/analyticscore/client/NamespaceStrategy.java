@@ -25,7 +25,7 @@ import java.io.IOException;
  * <p>Methods for directory operations will be added in follow-up PRs. These methods will include:
  *
  * <ul>
- *   <li>{@code GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;}
+ *   <li>{@code GcsItemInfo getDirectoryInfo(GcsItemId id) throws IOException;}
  *   <li>{@code void createDirectory(GcsItemId id) throws IOException;}
  *   <li>{@code boolean isDirectoryEmpty(GcsItemId id) throws IOException;}
  *   <li>{@code void renameDirectory(GcsItemId src, GcsItemId dst) throws IOException;}
@@ -34,5 +34,5 @@ import java.io.IOException;
  * </ul>
  */
 interface NamespaceStrategy {
-  GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException;
+  GcsItemInfo getDirectoryInfo(GcsItemId id) throws IOException;
 }

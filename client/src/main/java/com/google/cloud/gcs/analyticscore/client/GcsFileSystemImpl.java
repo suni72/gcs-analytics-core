@@ -33,13 +33,17 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.channels.WritableByteChannel;
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -95,8 +99,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     fileSystemOptions.getGcsClientOptions(),
                     readExecutorServiceSupplier,
                     telemetry));
-    this.flatStrategy =
-        new FlatNamespaceStrategyImpl(this.gcsClient, this.listExecutorServiceSupplier);
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -117,8 +120,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
                     fileSystemOptions.getGcsClientOptions(),
                     readExecutorServiceSupplier,
                     telemetry));
-    this.flatStrategy =
-        new FlatNamespaceStrategyImpl(this.gcsClient, this.listExecutorServiceSupplier);
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -143,8 +145,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     this.listExecutorServiceSupplier = initializeListExecutionServiceSupplier();
     this.telemetry = telemetry;
     this.cacheManager = cacheManager;
-    this.flatStrategy =
-        new FlatNamespaceStrategyImpl(this.gcsClient, this.listExecutorServiceSupplier);
+    this.flatStrategy = new FlatNamespaceStrategyImpl(this.gcsClient);
     this.hnsStrategy = new HierarchicalNamespaceStrategyImpl(this.gcsClient);
   }
 
@@ -199,6 +200,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
   @Override
   public GcsFileInfo getFileInfo(GcsItemId itemId) throws IOException {
+    checkNotNull(itemId, "itemId should not be null");
     PathType pathType = PathType.resolve(itemId);
 
     if (pathType == PathType.ROOT) {
@@ -209,17 +211,47 @@ public class GcsFileSystemImpl implements GcsFileSystem {
       GcsItemInfo bucketInfo = gcsClient.getBucketInfo(itemId);
       return createBucketFileInfo(bucketInfo);
     }
+    // Submit directory info in background
+    ExecutorService listExecutorService = listExecutorServiceSupplier.get();
+    Future<GcsItemInfo> directoryInfoFuture =
+        listExecutorService.submit(
+            () -> {
+              NamespaceStrategy strategy = resolveStrategy(itemId.getBucketName());
+              return strategy.getDirectoryInfo(itemId);
+            });
 
-    if (pathType == PathType.FILE) {
+    // Perform direct object metadata lookup if not explicit directory
+    if (pathType != PathType.DIRECTORY) {
       try {
-        return toGcsFileInfo(gcsClient.getGcsItemInfo(itemId));
-      } catch (IOException e) {
-        // Failed to get direct file info; fall through to the namespace strategy
+        GcsItemInfo itemInfo = gcsClient.getGcsItemInfo(itemId);
+        directoryInfoFuture.cancel(true);
+        return toGcsFileInfo(itemInfo);
+      } catch (FileNotFoundException ignored) {
+        // Direct object not found; fall through to directory info
+      } catch (Exception e) {
+        directoryInfoFuture.cancel(true);
+        throw e;
       }
     }
 
-    NamespaceStrategy strategy = resolveStrategy(itemId.getBucketName());
-    return toGcsFileInfo(strategy.getFileInfo(itemId, pathType));
+    // Await directory info and return (unwraps ExecutionException to FileNotFoundException /
+    // IOException)
+    return toGcsFileInfo(getFromFuture(directoryInfoFuture));
+  }
+
+  static <T> T getFromFuture(Future<T> future) throws IOException {
+    try {
+      return future.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Thread interrupted while waiting on future", e);
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause() != null ? e.getCause() : e;
+      if (cause instanceof IOException) {
+        throw (IOException) cause;
+      }
+      throw new IOException(cause);
+    }
   }
 
   private GcsFileInfo createBucketFileInfo(GcsItemInfo bucketInfo) {
@@ -236,7 +268,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
         .setItemInfo(gcsItemInfo)
         .setUri(
             URI.create(
-                BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()).toGsUtilUri()))
+                BlobId.of(itemId.getBucketName(), itemId.getObjectName().orElse("")).toGsUtilUri()))
         .setAttributes(Collections.emptyMap())
         .build();
   }
@@ -360,7 +392,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
             /* maximumPoolSize= */ CACHED_EXECUTOR_MAX_POOL_SIZE,
             /* keepAliveTime= */ CACHED_EXECUTOR_KEEP_ALIVE_SECONDS,
             TimeUnit.SECONDS,
-            new java.util.concurrent.SynchronousQueue<>(),
+            new SynchronousQueue<>(),
             new ThreadFactoryBuilder()
                 .setNameFormat("gcs-filesystem-cached-pool-%d")
                 .setDaemon(true)

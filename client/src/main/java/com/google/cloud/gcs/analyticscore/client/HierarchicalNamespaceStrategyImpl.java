@@ -16,6 +16,8 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import java.io.IOException;
 
 final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
@@ -26,12 +28,8 @@ final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
   }
 
   @Override
-  public GcsItemInfo getFileInfo(GcsItemId id, PathType pathType) throws IOException {
-    try {
-      return gcsClient.getFolderInfo(id);
-    } catch (IOException e) {
-      // Fallback to object lookup
-      return gcsClient.getGcsItemInfo(id);
-    }
+  public GcsItemInfo getDirectoryInfo(GcsItemId id) throws IOException {
+    checkNotNull(id, "Item ID must not be null.");
+    return gcsClient.getFolderInfo(id);
   }
 }
