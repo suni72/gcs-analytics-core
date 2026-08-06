@@ -167,7 +167,11 @@ class GcsClientImpl implements GcsClient {
     if (bucketInfo == null) {
       throw new IOException("Bucket not found: " + itemId.getBucketName());
     }
-    return GcsItemInfo.createInferredDirectory(itemId);
+    return GcsItemInfo.createInferredDirectory(itemId).toBuilder()
+        .setLocation(bucketInfo.getLocation())
+        .setStorageClass(
+            bucketInfo.getStorageClass() != null ? bucketInfo.getStorageClass().name() : null)
+        .build();
   }
 
   @Override
@@ -243,7 +247,26 @@ class GcsClientImpl implements GcsClient {
             .setModificationTime(
                 blob.getUpdateTimeOffsetDateTime() != null
                     ? blob.getUpdateTimeOffsetDateTime().toInstant().toEpochMilli()
-                    : 0L);
+                    : 0L)
+            .setVerificationAttributes(
+                VerificationAttributes.create(
+                    blob.getMd5() != null
+                        ? com.google.common.io.BaseEncoding.base64().decode(blob.getMd5())
+                        : null,
+                    blob.getCrc32c() != null
+                        ? com.google.common.io.BaseEncoding.base64().decode(blob.getCrc32c())
+                        : null));
+
+    if (blob.getContentType() != null) {
+      infoBuilder.setContentType(blob.getContentType());
+    }
+    if (blob.getContentEncoding() != null) {
+      infoBuilder.setContentEncoding(blob.getContentEncoding());
+    }
+    if (blob.getStorageClass() != null) {
+      infoBuilder.setStorageClass(blob.getStorageClass().name());
+    }
+    // blob.getLocation() doesn't exist, we omit it for objects (matching Hadoop behavior)
 
     if (blob.getMetadata() != null) {
       ImmutableMap.Builder<String, byte[]> xattrs = ImmutableMap.builder();
