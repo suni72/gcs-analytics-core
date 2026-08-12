@@ -104,7 +104,7 @@ class UriUtilTest {
   }
 
   @Test
-  void removeTrailingSlash_withoutTrailingSlash_returnsSame() {
+  void removeTrailingSlash_withoutTrailingSlash_returnsOriginal() {
     String result = UriUtil.removeTrailingSlash(TEST_PATH);
 
     assertThat(result).isEqualTo(TEST_PATH);
@@ -125,7 +125,7 @@ class UriUtilTest {
   }
 
   @Test
-  void ensureTrailingSlash_withTrailingSlash_returnsSame() {
+  void ensureTrailingSlash_withTrailingSlash_returnsOriginal() {
     String result = UriUtil.ensureTrailingSlash(TEST_PATH + "/");
 
     assertThat(result).isEqualTo(TEST_PATH + "/");
