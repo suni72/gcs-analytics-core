@@ -20,6 +20,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.paging.Page;
+import com.google.api.gax.rpc.AlreadyExistsException;
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.api.gax.rpc.NotFoundException;
 import com.google.auth.Credentials;
@@ -44,6 +45,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.BaseEncoding;
 import com.google.protobuf.Timestamp;
+import com.google.storage.control.v2.CreateFolderRequest;
 import com.google.storage.control.v2.Folder;
 import com.google.storage.control.v2.FolderName;
 import com.google.storage.control.v2.GetFolderRequest;
@@ -52,6 +54,7 @@ import com.google.storage.control.v2.StorageControlSettings;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -390,6 +393,60 @@ class GcsClientImpl implements GcsClient {
         }
         storageControlClient = null;
       }
+    }
+  }
+
+  @Override
+  public void createBucket(String bucketName) throws IOException {
+    checkNotNull(bucketName, "bucketName must not be null");
+    checkArgument(!bucketName.isEmpty(), "bucketName must not be empty");
+    try {
+      storage.create(BucketInfo.of(bucketName));
+    } catch (StorageException e) {
+      if (e.getCode() == 409) {
+        throw (FileAlreadyExistsException)
+            new FileAlreadyExistsException("Bucket already exists: " + bucketName).initCause(e);
+      }
+      throw new IOException("Failed to create bucket: " + bucketName, e);
+    }
+  }
+
+  @Override
+  public void createEmptyObject(GcsItemId itemId) throws IOException {
+    checkNotNull(itemId, "itemId must not be null");
+    checkArgument(itemId.isGcsObject(), "Expected a GCS object itemId but got: " + itemId);
+    String objectName = itemId.getObjectName().get();
+    BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(itemId.getBucketName(), objectName)).build();
+    try {
+      storage.create(blobInfo, new byte[0], Storage.BlobTargetOption.doesNotExist());
+    } catch (StorageException e) {
+      if (e.getCode() == 409 || e.getCode() == 412) {
+        throw (FileAlreadyExistsException)
+            new FileAlreadyExistsException("Object already exists: " + itemId).initCause(e);
+      }
+      throw new IOException("Failed to create empty object: " + itemId, e);
+    }
+  }
+
+  @Override
+  public void createFolder(GcsItemId itemId, boolean recursive) throws IOException {
+    checkNotNull(itemId, "itemId must not be null");
+    checkArgument(itemId.isGcsObject(), "Expected a folder itemId but got: " + itemId);
+    String objectName = itemId.getObjectName().orElse("");
+    String folderName = UriUtil.removeTrailingSlash(objectName);
+    CreateFolderRequest request =
+        CreateFolderRequest.newBuilder()
+            .setParent(String.format("projects/_/buckets/%s", itemId.getBucketName()))
+            .setFolderId(folderName)
+            .setRecursive(recursive)
+            .build();
+    try {
+      lazyGetStorageControlClient().createFolder(request);
+    } catch (AlreadyExistsException e) {
+      throw (FileAlreadyExistsException)
+          new FileAlreadyExistsException("Folder already exists: " + itemId).initCause(e);
+    } catch (Exception e) {
+      throw new IOException("Failed to create folder: " + itemId, e);
     }
   }
 
