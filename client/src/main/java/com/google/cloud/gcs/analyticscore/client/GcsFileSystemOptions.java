@@ -28,6 +28,8 @@ public abstract class GcsFileSystemOptions {
   private static final String HNS_API_ENABLED_KEY = "analytics-core.hierarchical.namespace.enable";
   private static final String METADATA_LOOKUP_PARALLEL_ENABLED_KEY =
       "analytics-core.metadata.lookup.parallel.enable";
+  private static final String CREATE_ITEMS_CONFLICT_CHECK_ENABLE_KEY =
+      "create.items.conflict.check.enable";
 
   /** Cloud Storage client to use. */
   public enum ClientType {
@@ -50,6 +52,8 @@ public abstract class GcsFileSystemOptions {
 
   public abstract boolean isMetadataLookupParallelEnabled();
 
+  public abstract boolean isEnsureNoConflictingItems();
+
   public abstract Builder toBuilder();
 
   public static Builder builder() {
@@ -58,6 +62,7 @@ public abstract class GcsFileSystemOptions {
         .setClientType(ClientType.HTTP_CLIENT)
         .setHnsApiEnabled(true)
         .setMetadataLookupParallelEnabled(true)
+        .setEnsureNoConflictingItems(true)
         .setGcsClientOptions(GcsClientOptions.builder().build())
         .setGcsCacheOptions(GcsCacheOptions.builder().build())
         .setAnalyticsCoreTelemetryOptions(TelemetryOptions.builder().build());
@@ -83,6 +88,11 @@ public abstract class GcsFileSystemOptions {
           Boolean.parseBoolean(
               analyticsCoreOptions.get(prefix + METADATA_LOOKUP_PARALLEL_ENABLED_KEY)));
     }
+    if (analyticsCoreOptions.containsKey(prefix + CREATE_ITEMS_CONFLICT_CHECK_ENABLE_KEY)) {
+      optionsBuilder.setEnsureNoConflictingItems(
+          Boolean.parseBoolean(
+              analyticsCoreOptions.get(prefix + CREATE_ITEMS_CONFLICT_CHECK_ENABLE_KEY)));
+    }
 
     optionsBuilder.setGcsClientOptions(
         GcsClientOptions.createFromOptions(analyticsCoreOptions, prefix));
@@ -104,6 +114,8 @@ public abstract class GcsFileSystemOptions {
     public abstract Builder setReadThreadCount(int readThreadCount);
 
     public abstract Builder setHnsApiEnabled(boolean isHnsApiEnabled);
+
+    public abstract Builder setEnsureNoConflictingItems(boolean ensureNoConflictingItems);
 
     public abstract Builder setMetadataLookupParallelEnabled(
         boolean isMetadataLookupParallelEnabled);
