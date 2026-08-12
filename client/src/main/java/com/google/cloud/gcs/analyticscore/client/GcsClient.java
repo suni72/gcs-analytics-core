@@ -62,7 +62,7 @@ public interface GcsClient {
   /** Creates a 0-byte empty object (used for flat directory markers). */
   void createEmptyObject(GcsItemId itemId) throws IOException;
 
-  /** Creates a folder for HNS buckets. */
+  /** Creates a folder in HNS buckets. */
   void createFolder(GcsItemId itemId, boolean recursive) throws IOException;
 
   boolean isHnsBucket(String bucketName) throws IOException;
