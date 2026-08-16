@@ -711,9 +711,13 @@ class GcsFileSystemImplTest {
   @Test
   void mkdirs_rootUri_returnsImmediatelyWithoutAction() throws IOException {
     gcsFileSystem.mkdirs(URI.create("gs:/"));
-    gcsFileSystem.mkdirs(URI.create("gs:///"));
 
     verifyNoInteractions(mockClient);
+  }
+
+  @Test
+  void mkdirs_tripleSlashRootUri_throwsIllegalArgumentException() {
+    assertThrows(IllegalArgumentException.class, () -> gcsFileSystem.mkdirs(URI.create("gs:///")));
   }
 
   @Test
