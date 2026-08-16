@@ -263,21 +263,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   @Override
   public void mkdirs(URI path) throws IOException {
     checkNotNull(path, "path should not be null");
-    if (path.getScheme() != null && !path.getScheme().isEmpty()) {
-      checkArgument(
-          "gs".equalsIgnoreCase(path.getScheme()),
-          "Expected scheme 'gs' but got '%s' for path: %s",
-          path.getScheme(),
-          path);
-    }
-    String authority = path.getAuthority();
-    String p = path.getPath();
-    if ((authority == null || authority.isEmpty()) && (p == null || p.isEmpty() || p.equals("/"))) {
-      // Root path always exists.
-      return;
-    }
-    GcsItemId itemId = UriUtil.getItemIdFromString(path.toString());
-    mkdirs(itemId);
+    mkdirs(UriUtil.getItemIdFromString(path.toString()));
   }
 
   @Override
