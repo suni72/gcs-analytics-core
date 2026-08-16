@@ -1168,6 +1168,19 @@ class GcsClientImplTest {
   }
 
   @Test
+  void createEmptyObject_preconditionFailed_throwsFileAlreadyExistsException() {
+    Storage mockStorage = mock(Storage.class);
+    GcsClientImpl client = createClientWithMockStorage(mockStorage);
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+    when(mockStorage.create(
+            any(BlobInfo.class), eq(new byte[0]), any(Storage.BlobTargetOption.class)))
+        .thenThrow(new StorageException(412, "Precondition Failed"));
+
+    assertThrows(FileAlreadyExistsException.class, () -> client.createEmptyObject(itemId));
+  }
+
+  @Test
   void createEmptyObject_storageException_throwsIOException() {
     Storage mockStorage = mock(Storage.class);
     GcsClientImpl client = createClientWithMockStorage(mockStorage);
@@ -1198,6 +1211,16 @@ class GcsClientImplTest {
     client.createFolder(itemId, true);
 
     verify(mockControlClient).createFolder(expectedRequest);
+  }
+
+  @Test
+  void createFolder_emptyFolderName_throwsIllegalArgumentException() {
+    Storage mockStorage = mock(Storage.class);
+    GcsClientImpl client = createClientWithMockStorage(mockStorage);
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("/").build();
+
+    assertThrows(IllegalArgumentException.class, () -> client.createFolder(itemId, true));
   }
 
   @Test

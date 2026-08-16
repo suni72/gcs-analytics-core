@@ -428,6 +428,7 @@ class GcsClientImpl implements GcsClient {
     checkArgument(itemId.isGcsObject(), "Expected a folder itemId but got: " + itemId);
     String objectName = itemId.getObjectName().orElse("");
     String folderName = UriUtil.removeTrailingSlash(objectName);
+    checkArgument(!folderName.isEmpty(), "Folder name cannot be empty");
     CreateFolderRequest request =
         CreateFolderRequest.newBuilder()
             .setParent(String.format("projects/_/buckets/%s", itemId.getBucketName()))
