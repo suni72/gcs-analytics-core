@@ -16,6 +16,7 @@
 package com.google.cloud.gcs.analyticscore.client;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,10 +36,12 @@ import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.gcs.analyticscore.common.telemetry.TelemetryOptions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -62,6 +65,7 @@ class GcsFileSystemImplTest {
   private static final String TEST_PROJECT = "test-project";
   private static final String TEST_BUCKET = "test-bucket";
   private static final String TEST_OBJECT = "test-dir/test-object.txt";
+  private static final String TEST_SUBDIR = "dir/subdir/";
   private static final GcsClientOptions TEST_GCS_CLIENT_OPTIONS =
       GcsClientOptions.builder().setProjectId(TEST_PROJECT).build();
   private static final GcsFileSystemOptions TEST_GCS_FILESYSTEM_OPTIONS =
@@ -713,6 +717,60 @@ class GcsFileSystemImplTest {
 
       assertThat(exception).hasMessageThat().isEqualTo("test exception");
     }
+  }
+
+  @Test
+  void getDirs_returnsCorrectSubdirectories() {
+    assertThat(GcsFileSystemImpl.getDirs("a/b/c/")).containsExactly("a", "a/b", "a/b/c").inOrder();
+    assertThat(GcsFileSystemImpl.getDirs("a/b/c")).containsExactly("a", "a/b", "a/b/c").inOrder();
+    assertThat(GcsFileSystemImpl.getDirs("dir/")).containsExactly("dir");
+    assertThat(GcsFileSystemImpl.getDirs("dir")).containsExactly("dir");
+    assertThat(GcsFileSystemImpl.getDirs("")).isEmpty();
+    assertThat(GcsFileSystemImpl.getDirs(null)).isEmpty();
+  }
+
+  @Test
+  void checkNoFilesConflictingWithDirs_noConflictingFiles_succeeds() throws IOException {
+    GcsItemId dirId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
+    when(mockClient.getGcsItemInfo(any(GcsItemId.class)))
+        .thenThrow(new FileNotFoundException("Not found"));
+
+    assertDoesNotThrow(
+        () -> ((GcsFileSystemImpl) gcsFileSystem).checkNoFilesConflictingWithDirs(dirId));
+  }
+
+  @Test
+  void checkNoFilesConflictingWithDirs_withConflictingFile_throwsFileAlreadyExistsException()
+      throws IOException {
+    GcsItemId dirId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
+    GcsItemId conflictingFileId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("dir").build();
+    GcsItemInfo mockFileInfo =
+        GcsItemInfo.builder()
+            .setItemId(conflictingFileId)
+            .setSize(100L)
+            .setContentGeneration(1L)
+            .build();
+    when(mockClient.getGcsItemInfo(eq(conflictingFileId))).thenReturn(mockFileInfo);
+
+    assertThrows(
+        FileAlreadyExistsException.class,
+        () -> ((GcsFileSystemImpl) gcsFileSystem).checkNoFilesConflictingWithDirs(dirId));
+  }
+
+  @Test
+  void checkNoFilesConflictingWithDirs_ioExceptionOtherThanFileNotFound_rethrowsIOException()
+      throws IOException {
+    GcsItemId dirId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
+    when(mockClient.getGcsItemInfo(any(GcsItemId.class)))
+        .thenThrow(new IOException("Server Error"));
+
+    assertThrows(
+        IOException.class,
+        () -> ((GcsFileSystemImpl) gcsFileSystem).checkNoFilesConflictingWithDirs(dirId));
   }
 
   @SuppressWarnings("unchecked")
