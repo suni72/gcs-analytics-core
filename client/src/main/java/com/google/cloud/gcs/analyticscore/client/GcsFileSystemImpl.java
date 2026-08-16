@@ -33,10 +33,13 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -222,6 +225,44 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
     // Delegate the actual SDK interaction and exception handling to the internal client
     return gcsClient.createWriteChannel(itemId, writeOptions);
+  }
+
+  @VisibleForTesting
+  void checkNoFilesConflictingWithDirs(GcsItemId itemId) throws IOException {
+    String objectName = itemId.getObjectName().orElse("");
+    List<String> dirs = getDirs(objectName);
+    for (String dir : dirs) {
+      GcsItemId fileId =
+          GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build();
+      try {
+        GcsItemInfo itemInfo = gcsClient.getGcsItemInfo(fileId);
+        if (itemInfo != null) {
+          throw new FileAlreadyExistsException(
+              String.format(
+                  "Cannot create directory '%s' because of existing file '%s'", itemId, fileId));
+        }
+      } catch (FileNotFoundException e) {
+        // File does not exist, no conflict.
+      }
+    }
+  }
+
+  @VisibleForTesting
+  static ImmutableList<String> getDirs(String objectName) {
+    if (objectName == null || objectName.isEmpty()) {
+      return ImmutableList.of();
+    }
+    String normalized = UriUtil.ensureTrailingSlash(objectName);
+    ImmutableList.Builder<String> dirs = ImmutableList.builder();
+    int index = 0;
+    while ((index = normalized.indexOf('/', index)) >= 0) {
+      String dir = normalized.substring(0, index);
+      if (!dir.isEmpty()) {
+        dirs.add(dir);
+      }
+      index++;
+    }
+    return dirs.build();
   }
 
   @VisibleForTesting
