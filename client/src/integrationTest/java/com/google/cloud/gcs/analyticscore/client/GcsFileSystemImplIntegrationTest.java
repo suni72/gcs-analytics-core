@@ -237,6 +237,63 @@ class GcsFileSystemImplIntegrationTest {
         });
     }
 
+    @Test
+    @EnabledIfSystemProperty(named = "gcs.integration.test.bucket", matches = ".+")
+    void mkdirs_createsDirectoryMarkerAndIsIdempotent_success() throws IOException {
+        String bucketName = System.getProperty("gcs.integration.test.bucket");
+        String dirObjectName = "test-mkdirs-" + UUID.randomUUID() + "/subdir/";
+        URI dirUri = URI.create("gs://" + bucketName + "/" + dirObjectName);
+        blobsToDelete.add(BlobId.of(bucketName, dirObjectName));
+        GcsFileSystemImpl gcsFileSystem = createFileSystem(GcsClientOptions.builder().build());
+
+        // Verify initial directory marker creation
+        gcsFileSystem.mkdirs(dirUri);
+        assertThat(gcsFileSystem.getFileInfo(dirUri).getItemInfo().getItemId().isGcsObject())
+                .isTrue();
+
+        // Verify calling mkdirs on an existing directory is idempotent
+        gcsFileSystem.mkdirs(dirUri);
+        assertThat(gcsFileSystem.getFileInfo(dirUri).getItemInfo().getItemId().isGcsObject())
+                .isTrue();
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "gcs.integration.test.bucket", matches = ".+")
+    void mkdirs_withConflictingFile_throwsFileAlreadyExistsException() throws IOException {
+        String bucketName = System.getProperty("gcs.integration.test.bucket");
+        TestWriteContext ctx = new TestWriteContext(bucketName, blobsToDelete);
+        GcsFileSystemImpl gcsFileSystem = createFileSystem(GcsClientOptions.builder().build());
+        try (WritableByteChannel channel =
+                gcsFileSystem.create(ctx.itemId, GcsWriteOptions.builder().build())) {
+            channel.write(ByteBuffer.wrap("file content".getBytes(StandardCharsets.UTF_8)));
+        }
+        URI subdirUri = URI.create(ctx.uri.toString() + "/subdir");
+
+        assertThrows(FileAlreadyExistsException.class, () -> gcsFileSystem.mkdirs(subdirUri));
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "gcs.integration.test.hns.bucket", matches = ".+")
+    void mkdirs_createsHnsFolderAndIsIdempotent_success() throws IOException {
+        String bucketName = System.getProperty("gcs.integration.test.hns.bucket");
+        String dirObjectName = "test-mkdirs-hns-" + UUID.randomUUID() + "/subdir/";
+        URI dirUri = URI.create("gs://" + bucketName + "/" + dirObjectName);
+        GcsFileSystemOptions options = GcsFileSystemOptions.builder()
+                .setHnsApiEnabled(true)
+                .build();
+        GcsFileSystemImpl gcsFileSystem = new GcsFileSystemImpl(options);
+
+        // Verify initial folder creation
+        gcsFileSystem.mkdirs(dirUri);
+        assertThat(gcsFileSystem.getGcsClient().getFolderInfo(
+                UriUtil.getItemIdFromString(dirUri.toString()))).isNotNull();
+
+        // Verify calling mkdirs on an existing folder is idempotent
+        gcsFileSystem.mkdirs(dirUri);
+        assertThat(gcsFileSystem.getGcsClient().getFolderInfo(
+                UriUtil.getItemIdFromString(dirUri.toString()))).isNotNull();
+    }
+
     private static class TestWriteContext {
         final URI uri;
         final GcsItemId itemId;
