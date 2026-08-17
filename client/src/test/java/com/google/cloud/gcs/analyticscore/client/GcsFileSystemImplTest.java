@@ -16,6 +16,7 @@
 package com.google.cloud.gcs.analyticscore.client;
 
 import static com.google.common.truth.Truth.assertThat;
+import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,7 +37,6 @@ import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.gcs.analyticscore.common.telemetry.TelemetryOptions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -733,8 +733,12 @@ class GcsFileSystemImplTest {
   void checkNoFilesConflictingWithDirs_noConflictingFiles_succeeds() throws IOException {
     GcsItemId dirId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
-    when(mockClient.getGcsItemInfo(any(GcsItemId.class)))
-        .thenThrow(new FileNotFoundException("Not found"));
+    when(mockClient.getGcsItemInfos(any()))
+        .thenAnswer(
+            invocation -> {
+              List<?> list = invocation.getArgument(0);
+              return Collections.nCopies(list.size(), null);
+            });
 
     assertDoesNotThrow(
         () -> ((GcsFileSystemImpl) gcsFileSystem).checkNoFilesConflictingWithDirs(dirId));
@@ -753,7 +757,7 @@ class GcsFileSystemImplTest {
             .setSize(100L)
             .setContentGeneration(1L)
             .build();
-    when(mockClient.getGcsItemInfo(eq(conflictingFileId))).thenReturn(mockFileInfo);
+    when(mockClient.getGcsItemInfos(any())).thenReturn(asList(mockFileInfo, null));
 
     assertThrows(
         FileAlreadyExistsException.class,
@@ -765,8 +769,7 @@ class GcsFileSystemImplTest {
       throws IOException {
     GcsItemId dirId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
-    when(mockClient.getGcsItemInfo(any(GcsItemId.class)))
-        .thenThrow(new IOException("Server Error"));
+    when(mockClient.getGcsItemInfos(any())).thenThrow(new IOException("Server Error"));
 
     assertThrows(
         IOException.class,

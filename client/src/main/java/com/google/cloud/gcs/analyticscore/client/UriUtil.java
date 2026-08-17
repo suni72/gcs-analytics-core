@@ -15,6 +15,7 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.cloud.gcs.analyticscore.client.GcsClient.PATH_DELIMITER;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.regex.Matcher;
@@ -61,15 +62,15 @@ final class UriUtil {
   }
 
   static String removeTrailingSlash(String path) {
-    if (path != null && path.endsWith("/")) {
-      return path.substring(0, path.length() - 1);
+    if (path != null && path.endsWith(PATH_DELIMITER)) {
+      return path.substring(0, path.length() - PATH_DELIMITER.length());
     }
     return path;
   }
 
   static String toDirectoryPath(String path) {
-    if (path != null && !path.endsWith("/")) {
-      return path + "/";
+    if (path != null && !path.endsWith(PATH_DELIMITER)) {
+      return path + PATH_DELIMITER;
     }
     return path;
   }

@@ -15,8 +15,10 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.cloud.gcs.analyticscore.client.GcsClient.PATH_DELIMITER;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 import com.google.auth.Credentials;
 import com.google.cloud.gcs.analyticscore.common.GcsAnalyticsCoreTelemetryConstants;
@@ -33,7 +35,6 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.WritableByteChannel;
@@ -263,36 +264,39 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   void checkNoFilesConflictingWithDirs(GcsItemId itemId) throws IOException {
     String objectName = itemId.getObjectName().orElse("");
     List<String> dirs = getDirs(objectName);
+    if (dirs.isEmpty()) {
+      return;
+    }
+    ImmutableList.Builder<GcsItemId> fileIds = ImmutableList.builderWithExpectedSize(dirs.size());
     for (String dir : dirs) {
-      GcsItemId fileId =
-          GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build();
-      try {
-        GcsItemInfo itemInfo = gcsClient.getGcsItemInfo(fileId);
-        if (itemInfo != null) {
-          throw new FileAlreadyExistsException(
-              String.format(
-                  "Cannot create directory '%s' because of existing file '%s'", itemId, fileId));
-        }
-      } catch (FileNotFoundException e) {
-        // File does not exist, no conflict.
+      fileIds.add(
+          GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build());
+    }
+
+    for (GcsItemInfo itemInfo : gcsClient.getGcsItemInfos(fileIds.build())) {
+      if (itemInfo != null) {
+        throw new FileAlreadyExistsException(
+            String.format(
+                "Cannot create directory '%s' because of existing file '%s'",
+                itemId, itemInfo.getItemId()));
       }
     }
   }
 
   @VisibleForTesting
   static ImmutableList<String> getDirs(String objectName) {
-    if (objectName == null || objectName.isEmpty()) {
+    if (isNullOrEmpty(objectName)) {
       return ImmutableList.of();
     }
     String normalized = UriUtil.ensureTrailingSlash(objectName);
     ImmutableList.Builder<String> dirs = ImmutableList.builder();
     int index = 0;
-    while ((index = normalized.indexOf('/', index)) >= 0) {
+    while ((index = normalized.indexOf(PATH_DELIMITER, index)) >= 0) {
       String dir = normalized.substring(0, index);
       if (!dir.isEmpty()) {
         dirs.add(dir);
       }
-      index++;
+      index += PATH_DELIMITER.length();
     }
     return dirs.build();
   }
