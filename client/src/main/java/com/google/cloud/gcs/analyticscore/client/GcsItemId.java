@@ -60,6 +60,11 @@ public abstract class GcsItemId {
         && !this.getObjectName().get().isEmpty();
   }
 
+  /** Returns true if this identifier represents the GCS global root. */
+  public boolean isRoot() {
+    return this.equals(ROOT);
+  }
+
   /**
    * Returns true if this identifier represents the GCS global root.
    *

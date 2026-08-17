@@ -792,7 +792,7 @@ class GcsFileSystemImplTest {
 
   @Test
   void mkdirs_rootItemId_returnsImmediatelyWithoutAction() throws IOException {
-    GcsItemId rootItemId = GcsItemId.builder().setBucketName("").build();
+    GcsItemId rootItemId = GcsItemId.ROOT;
 
     gcsFileSystem.mkdirs(rootItemId);
 

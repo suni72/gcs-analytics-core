@@ -147,4 +147,14 @@ class GcsItemIdTest {
     assertThat(root.isGcsObject()).isFalse();
     assertThat(root.isRoot()).isTrue();
   }
+
+  @Test
+  void isRoot_forNonRoot_returnsFalse() {
+    GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
+    GcsItemId objectId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_OBJECT).build();
+
+    assertThat(bucketId.isRoot()).isFalse();
+    assertThat(objectId.isRoot()).isFalse();
+  }
 }
