@@ -15,6 +15,7 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.cloud.gcs.analyticscore.client.GcsClient.PATH_DELIMITER;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.regex.Matcher;
