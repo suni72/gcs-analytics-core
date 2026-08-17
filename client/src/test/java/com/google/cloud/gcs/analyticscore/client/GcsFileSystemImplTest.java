@@ -665,7 +665,7 @@ class GcsFileSystemImplTest {
   void checkNoFilesConflictingWithDirs_noConflictingFiles_succeeds() throws IOException {
     GcsItemId dirId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
-    when(mockClient.getGcsItemInfos(any()))
+    when(mockClient.getGcsObjectInfos(any()))
         .thenAnswer(
             invocation -> {
               List<?> list = invocation.getArgument(0);
@@ -689,7 +689,7 @@ class GcsFileSystemImplTest {
             .setSize(100L)
             .setContentGeneration(1L)
             .build();
-    when(mockClient.getGcsItemInfos(any())).thenReturn(asList(mockFileInfo, null));
+    when(mockClient.getGcsObjectInfos(any())).thenReturn(asList(mockFileInfo, null));
 
     assertThrows(
         FileAlreadyExistsException.class,
@@ -701,7 +701,7 @@ class GcsFileSystemImplTest {
       throws IOException {
     GcsItemId dirId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
-    when(mockClient.getGcsItemInfos(any())).thenThrow(new IOException("Server Error"));
+    when(mockClient.getGcsObjectInfos(any())).thenThrow(new IOException("Server Error"));
 
     assertThrows(
         IOException.class,
