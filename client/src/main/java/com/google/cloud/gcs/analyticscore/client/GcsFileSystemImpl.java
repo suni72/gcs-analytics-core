@@ -273,7 +273,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
           GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build());
     }
 
-    for (GcsItemInfo itemInfo : gcsClient.getGcsItemInfos(fileIds.build())) {
+    for (GcsItemInfo itemInfo : gcsClient.getGcsObjectInfos(fileIds.build())) {
       if (itemInfo != null) {
         throw new FileAlreadyExistsException(
             String.format(

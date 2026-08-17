@@ -46,6 +46,12 @@ public interface GcsClient {
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
 
+  /**
+   * Fetches metadata for a list of GCS objects concurrently. Returns a list in the same order as
+   * input itemIds, with null at indexes where the object does not exist.
+   */
+  List<GcsItemInfo> getGcsObjectInfos(List<GcsItemId> itemIds) throws IOException;
+
   /** Fetches bucket metadata. */
   GcsItemInfo getBucketInfo(GcsItemId itemId) throws IOException;
 

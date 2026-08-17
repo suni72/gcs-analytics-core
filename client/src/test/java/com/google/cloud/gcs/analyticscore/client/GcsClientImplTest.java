@@ -233,6 +233,65 @@ class GcsClientImplTest {
   }
 
   @Test
+  void getGcsObjectInfos_emptyList_returnsEmptyList() throws IOException {
+    List<GcsItemInfo> result = gcsClient.getGcsObjectInfos(ImmutableList.of());
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getGcsObjectInfos_multipleItems_returnsListPreservingOrderWithNullForMissing()
+      throws IOException {
+    GcsItemId existingId1 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName(TEST_OBJECT_ID).build();
+    GcsItemId existingId2 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object2").build();
+    GcsItemId missingId =
+        GcsItemId.builder()
+            .setBucketName(TEST_BUCKET_ID)
+            .setObjectName(TEST_NON_EXISTENT_OBJECT)
+            .build();
+    StorageTestUtils.createBlobInStorage(
+        storage,
+        BlobId.of(existingId1.getBucketName(), existingId1.getObjectName().get(), 0L),
+        "data");
+    StorageTestUtils.createBlobInStorage(
+        storage,
+        BlobId.of(existingId2.getBucketName(), existingId2.getObjectName().get(), 0L),
+        "data2");
+
+    List<GcsItemInfo> result =
+        gcsClient.getGcsObjectInfos(ImmutableList.of(existingId1, existingId2, missingId));
+
+    assertThat(result).hasSize(3);
+    assertThat(result.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
+    assertThat(result.get(1).getItemId().getObjectName()).hasValue("object2");
+    assertThat(result.get(2)).isNull();
+  }
+
+  @Test
+  void getGcsObjectInfos_singleItem_returnsExpectedInfo() throws IOException {
+    GcsItemId existingId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName(TEST_OBJECT_ID).build();
+    GcsItemId missingId =
+        GcsItemId.builder()
+            .setBucketName(TEST_BUCKET_ID)
+            .setObjectName(TEST_NON_EXISTENT_OBJECT)
+            .build();
+    StorageTestUtils.createBlobInStorage(
+        storage,
+        BlobId.of(existingId.getBucketName(), existingId.getObjectName().get(), 0L),
+        "data");
+
+    List<GcsItemInfo> existingResult = gcsClient.getGcsObjectInfos(ImmutableList.of(existingId));
+    List<GcsItemInfo> missingResult = gcsClient.getGcsObjectInfos(ImmutableList.of(missingId));
+
+    assertThat(existingResult).hasSize(1);
+    assertThat(existingResult.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
+    assertThat(missingResult).containsExactly((GcsItemInfo) null);
+  }
+
+  @Test
   void openReadChannel_gcsObjectExists_returnsChannelWithCorrectSizeAndContent()
       throws IOException {
     String objectData = "hello world";
