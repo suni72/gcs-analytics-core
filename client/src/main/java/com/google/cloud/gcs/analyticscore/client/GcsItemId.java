@@ -55,10 +55,12 @@ public abstract class GcsItemId {
    * name.
    */
   public boolean isGcsObject() {
-    return this.getBucketName() != null
-        && !this.getBucketName().isEmpty()
-        && this.getObjectName().isPresent()
-        && !this.getObjectName().get().isEmpty();
+    return !this.getBucketName().isEmpty() && !this.getObjectName().orElse("").isEmpty();
+  }
+
+  /** Returns true if this identifier represents the GCS global root. */
+  public boolean isRoot() {
+    return this.equals(ROOT);
   }
 
   /**
@@ -68,8 +70,6 @@ public abstract class GcsItemId {
    * either absent or empty).
    */
   public boolean isBucket() {
-    return this.getBucketName() != null
-        && !this.getBucketName().isEmpty()
-        && (this.getObjectName().isEmpty() || this.getObjectName().get().isEmpty());
+    return !this.getBucketName().isEmpty() && this.getObjectName().orElse("").isEmpty();
   }
 }

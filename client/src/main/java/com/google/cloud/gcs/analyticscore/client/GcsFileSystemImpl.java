@@ -237,11 +237,11 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   @Override
   public void mkdirs(GcsItemId itemId) throws IOException {
     checkNotNull(itemId, "itemId should not be null");
-    if (itemId.getBucketName() == null || itemId.getBucketName().isEmpty()) {
+    if (itemId.isRoot()) {
       // Root path always exists.
       return;
     }
-    if (!itemId.isGcsObject() || itemId.getObjectName().orElse("").isEmpty()) {
+    if (itemId.isBucket()) {
       try {
         gcsClient.createBucket(itemId.getBucketName());
       } catch (FileAlreadyExistsException e) {
