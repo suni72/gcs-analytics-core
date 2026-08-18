@@ -453,7 +453,7 @@ class GcsClientImpl implements GcsClient {
     BlobInfo.Builder blobInfoBuilder =
         BlobInfo.newBuilder(BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()));
     if (!options.getMetadata().isEmpty()) {
-      blobInfoBuilder.setMetadata(encodeMetadata(options.getMetadata()));
+      blobInfoBuilder.setMetadata(GcsItemInfo.encodeMetadata(options.getMetadata()));
     }
     options.getContentType().ifPresent(blobInfoBuilder::setContentType);
     options.getContentEncoding().ifPresent(blobInfoBuilder::setContentEncoding);
