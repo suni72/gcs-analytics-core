@@ -35,6 +35,7 @@ class GcsWriteOptionsTest {
     assertThat(options.isChecksumValidationEnabled()).isFalse();
     assertThat(options.isDisableGzipContent()).isTrue();
     assertThat(options.isOverwriteExisting()).isTrue();
+    assertThat(options.isEnsureEmptyObjectsMetadataMatch()).isTrue();
     assertThat(options.getKmsKeyName().isPresent()).isFalse();
     assertThat(options.getUserProject().isPresent()).isFalse();
     assertThat(options.getEncryptionKey().isPresent()).isFalse();
@@ -57,6 +58,7 @@ class GcsWriteOptionsTest {
             .setChecksumValidationEnabled(true)
             .setDisableGzipContent(false)
             .setOverwriteExisting(false)
+            .setEnsureEmptyObjectsMetadataMatch(false)
             .setKmsKeyName("kms-key")
             .setUserProject("project-123")
             .setEncryptionKey("enc-key")
@@ -68,6 +70,7 @@ class GcsWriteOptionsTest {
     assertThat(options.isChecksumValidationEnabled()).isTrue();
     assertThat(options.isDisableGzipContent()).isFalse();
     assertThat(options.isOverwriteExisting()).isFalse();
+    assertThat(options.isEnsureEmptyObjectsMetadataMatch()).isFalse();
     assertThat(options.getKmsKeyName()).hasValue("kms-key");
     assertThat(options.getUserProject()).hasValue("project-123");
     assertThat(options.getEncryptionKey()).hasValue("enc-key");
@@ -84,6 +87,7 @@ class GcsWriteOptionsTest {
             .put("gcs.channel.write.checksum-validation.enabled", "true")
             .put("gcs.channel.write.disable-gzip-content", "false")
             .put("gcs.channel.write.overwrite-existing", "false")
+            .put("gcs.channel.write.ensure-empty-objects-metadata-match", "false")
             .put("gcs.kms-key-name", "kms-key")
             .put("gcs.user-project", "project-123")
             .put("gcs.encryption-key", "enc-key")
@@ -94,6 +98,7 @@ class GcsWriteOptionsTest {
     assertThat(options.isChecksumValidationEnabled()).isTrue();
     assertThat(options.isDisableGzipContent()).isFalse();
     assertThat(options.isOverwriteExisting()).isFalse();
+    assertThat(options.isEnsureEmptyObjectsMetadataMatch()).isFalse();
     assertThat(options.getKmsKeyName()).hasValue("kms-key");
     assertThat(options.getUserProject()).hasValue("project-123");
     assertThat(options.getEncryptionKey()).hasValue("enc-key");

@@ -75,6 +75,7 @@ class GcsItemIdTest {
     GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
 
     assertThat(bucketId.isBucket()).isTrue();
+    assertThat(bucketId.isDirectory()).isTrue();
     assertThat(bucketId.isGcsObject()).isFalse();
   }
 
@@ -84,6 +85,23 @@ class GcsItemIdTest {
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_OBJECT).build();
 
     assertThat(objectId.isBucket()).isFalse();
+    assertThat(objectId.isDirectory()).isFalse();
+  }
+
+  @Test
+  void isDirectory_withTrailingSlash_returnsTrue() {
+    GcsItemId directoryId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("folder/subfolder/").build();
+
+    assertThat(directoryId.isDirectory()).isTrue();
+  }
+
+  @Test
+  void isRoot_returnsTrueForRoot() {
+    assertThat(GcsItemId.ROOT.isRoot()).isTrue();
+    assertThat(GcsItemId.ROOT.isDirectory()).isTrue();
+    assertThat(GcsItemId.ROOT.isBucket()).isFalse();
+    assertThat(GcsItemId.ROOT.isGcsObject()).isFalse();
   }
 
   @Test

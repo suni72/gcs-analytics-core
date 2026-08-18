@@ -38,4 +38,13 @@ final class ConfigurationUtil {
   static int safeParseInteger(Map<String, String> options, String key) {
     return safeParseInteger(key, options.get(key));
   }
+
+  static long safeParseLong(String key, String valueStr) {
+    try {
+      return Long.parseLong(valueStr);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(
+          String.format("Invalid long value for %s: %s", key, valueStr), e);
+    }
+  }
 }
