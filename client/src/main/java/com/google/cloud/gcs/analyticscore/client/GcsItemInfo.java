@@ -18,6 +18,7 @@ package com.google.cloud.gcs.analyticscore.client;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.BaseEncoding;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -147,6 +148,27 @@ public abstract class GcsItemInfo {
       }
     }
     return decoded.build();
+  }
+
+  public static boolean isMetadataEqual(Map<String, byte[]> map1, Map<String, byte[]> map2) {
+    if (map1 == map2) {
+      return true;
+    }
+    if (map1 == null || map2 == null || map1.size() != map2.size()) {
+      return false;
+    }
+    for (Map.Entry<String, byte[]> entry : map1.entrySet()) {
+      String key = entry.getKey();
+      byte[] val1 = entry.getValue();
+      byte[] val2 = map2.get(key);
+      if (!Arrays.equals(val1, val2)) {
+        return false;
+      }
+      if (val1 == null && !map2.containsKey(key)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public abstract Builder toBuilder();

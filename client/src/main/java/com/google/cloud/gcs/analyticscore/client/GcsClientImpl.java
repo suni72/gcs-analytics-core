@@ -27,14 +27,19 @@ import com.google.auth.Credentials;
 import com.google.cloud.gcs.analyticscore.client.GcsReadChannel.ItemInfoProvider;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobAppendableUpload;
+import com.google.cloud.storage.BlobAppendableUpload.AppendableUploadWriteableByteChannel;
+import com.google.cloud.storage.BlobAppendableUploadConfig;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.BlobWriteSession;
+import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.BucketInfo.HierarchicalNamespace;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobField;
 import com.google.cloud.storage.Storage.BlobListOption;
+import com.google.cloud.storage.Storage.BlobTargetOption;
 import com.google.cloud.storage.Storage.BlobWriteOption;
 import com.google.cloud.storage.Storage.BucketField;
 import com.google.cloud.storage.StorageException;
@@ -43,6 +48,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.io.BaseEncoding;
 import com.google.protobuf.Timestamp;
 import com.google.storage.control.v2.CreateFolderRequest;
@@ -53,13 +59,17 @@ import com.google.storage.control.v2.StorageControlClient;
 import com.google.storage.control.v2.StorageControlSettings;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +97,10 @@ class GcsClientImpl implements GcsClient {
           BucketField.TIME_CREATED,
           BucketField.UPDATED);
   private static final String USER_AGENT_PREFIX = "gcs-analytics-core/";
+  private static final GcsWriteOptions EMPTY_OBJECT_WRITE_OPTIONS =
+      GcsWriteOptions.builder().setEnsureEmptyObjectsMetadataMatch(false).build();
+  private static final ImmutableSet<Integer> RETRYABLE_GET_METADATA_ERROR_CODES =
+      ImmutableSet.of(429, 500, 502, 503, 504);
 
   @VisibleForTesting Storage storage;
   private final GcsClientOptions clientOptions;
@@ -413,19 +427,206 @@ class GcsClientImpl implements GcsClient {
 
   @Override
   public void createEmptyObject(GcsItemId itemId) throws IOException {
+    createEmptyObject(itemId, EMPTY_OBJECT_WRITE_OPTIONS);
+  }
+
+  @Override
+  public void createEmptyObject(GcsItemId itemId, GcsWriteOptions options) throws IOException {
     checkNotNull(itemId, "itemId must not be null");
     checkArgument(itemId.isGcsObject(), "Expected a GCS object itemId but got: " + itemId);
-    String objectName = itemId.getObjectName().get();
-    BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(itemId.getBucketName(), objectName)).build();
     try {
-      storage.create(blobInfo, new byte[0], Storage.BlobTargetOption.doesNotExist());
+      createEmptyObjectInternal(itemId, options);
     } catch (StorageException e) {
-      if (e.getCode() == 409 || e.getCode() == 412) {
-        throw (FileAlreadyExistsException)
-            new FileAlreadyExistsException("Object already exists: " + itemId).initCause(e);
+      if (canIgnoreExceptionForEmptyObject(e, itemId, options)) {
+        LOG.info("Ignored exception while creating empty object", e);
+      } else {
+        if (e.getCode() == 409 || e.getCode() == 412) {
+          throw (FileAlreadyExistsException)
+              new FileAlreadyExistsException("Object already exists: " + itemId).initCause(e);
+        }
+        throw new IOException("Failed to create empty object: " + itemId, e);
       }
-      throw new IOException("Failed to create empty object: " + itemId, e);
     }
+  }
+
+  private BlobInfo buildEmptyBlobInfo(GcsItemId itemId, GcsWriteOptions options) {
+    BlobInfo.Builder blobInfoBuilder =
+        BlobInfo.newBuilder(BlobId.of(itemId.getBucketName(), itemId.getObjectName().get()));
+    if (!options.getMetadata().isEmpty()) {
+      blobInfoBuilder.setMetadata(encodeMetadata(options.getMetadata()));
+    }
+    options.getContentType().ifPresent(blobInfoBuilder::setContentType);
+    options.getContentEncoding().ifPresent(blobInfoBuilder::setContentEncoding);
+    return blobInfoBuilder.build();
+  }
+
+  private void createEmptyObjectInternal(GcsItemId itemId, GcsWriteOptions options)
+      throws IOException {
+    BlobInfo blobInfo = buildEmptyBlobInfo(itemId, options);
+
+    List<BlobTargetOption> targetOptions = new ArrayList<>();
+    if (options.isDisableGzipContent()) {
+      targetOptions.add(BlobTargetOption.disableGzipContent());
+    }
+    if (itemId.getContentGeneration().isPresent()) {
+      targetOptions.add(BlobTargetOption.generationMatch(itemId.getContentGeneration().get()));
+    } else if (itemId.isDirectory() || !options.isOverwriteExisting()) {
+      targetOptions.add(BlobTargetOption.doesNotExist());
+    }
+    if (options.getEncryptionKey().isPresent()) {
+      targetOptions.add(BlobTargetOption.encryptionKey(options.getEncryptionKey().get()));
+    }
+
+    if (isRapidBucket(itemId.getBucketName())) {
+      createAppendableEmptyObject(itemId, options);
+    } else {
+      storage.create(blobInfo, targetOptions.toArray(new BlobTargetOption[0]));
+    }
+  }
+
+  @Override
+  public boolean isRapidBucket(String bucketName) {
+    Bucket bucket = storage.get(bucketName);
+    return bucket != null
+        && bucket.getStorageClass() != null
+        && "RAPID".equalsIgnoreCase(bucket.getStorageClass().toString());
+  }
+
+  private void createAppendableEmptyObject(GcsItemId itemId, GcsWriteOptions options)
+      throws IOException {
+    checkNotNull(itemId, "itemId must not be null");
+    checkArgument(itemId.isGcsObject(), "Expected a GCS object itemId but got: " + itemId);
+    BlobInfo blobInfo = buildEmptyBlobInfo(itemId, options);
+    BlobWriteOption[] writeOptions =
+        options.toBuilder().setOverwriteExisting(false).build().generateWriteOptions(itemId);
+    try {
+      BlobAppendableUpload upload =
+          storage.blobAppendableUpload(blobInfo, BlobAppendableUploadConfig.of(), writeOptions);
+      try (AppendableUploadWriteableByteChannel channel = upload.open()) {
+        channel.write(ByteBuffer.wrap(new byte[0]));
+        channel.finalizeAndClose();
+      }
+    } catch (IOException e) {
+      if (e.getCause() instanceof StorageException) {
+        throw (StorageException) e.getCause();
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Determines whether an exception thrown during 0-byte empty object creation can be safely
+   * ignored. If {@link GcsWriteOptions#isEnsureEmptyObjectsMetadataMatch()} is enabled, it also
+   * verifies that all requested custom metadata values match the existing object's attributes.
+   *
+   * <p>When creating empty objects, concurrent requests (triggering 412 - Precondition Failed when
+   * precondition {@code doesNotExist()} is set on a directory marker) or transient GCS errors (429
+   * - Too Many Requests, 500 - Internal Server Error, or 503 - Service Unavailable) can cause
+   * object creation to fail.
+   */
+  private boolean canIgnoreExceptionForEmptyObject(
+      StorageException exceptionOnCreate, GcsItemId itemId, GcsWriteOptions options)
+      throws IOException {
+    int code = exceptionOnCreate.getCode();
+    if (code == 429 || code == 500 || code == 503 || (itemId.isDirectory() && code == 412)) {
+      long maxWaitTimeMillis = clientOptions.getMaxWaitTimeForEmptyObjectCreation().toMillis();
+      return pollWithExponentialBackoff(
+          () -> {
+            Blob blob;
+            try {
+              blob = getBlob(itemId.getBucketName(), itemId.getObjectName().orElse(""));
+            } catch (IOException e) {
+              if (e.getCause() instanceof StorageException) {
+                int errorCode = ((StorageException) e.getCause()).getCode();
+                if (RETRYABLE_GET_METADATA_ERROR_CODES.contains(errorCode)) {
+                  // returns false so that the retry logic in pollWithExponentialBackoff continues
+                  return false;
+                }
+              }
+              exceptionOnCreate.addSuppressed(e);
+              throw new IOException(
+                  "Failed to verify existence of 0-byte object "
+                      + itemId
+                      + " after creation failed: ",
+                  exceptionOnCreate);
+            }
+            if (blob != null) {
+              if (blob.getSize() == null || blob.getSize() == 0L) {
+                if (options.isEnsureEmptyObjectsMetadataMatch()) {
+                  GcsItemInfo existingInfo = fromBlob(blob);
+                  return GcsItemInfo.isMetadataEqual(
+                      options.getMetadata(), existingInfo.getExtendedAttributes());
+                }
+                return true;
+              }
+            }
+            return false;
+          },
+          /*max elapsed time*/ maxWaitTimeMillis,
+          /*initial interval*/ 100L,
+          /*max interval*/ 500L,
+          /*multiplier*/ 1.5,
+          /*randomization factor*/ 0.15);
+    }
+    return false;
+  }
+
+  @FunctionalInterface
+  private interface ThrowingBooleanSupplier {
+    boolean getAsBoolean() throws IOException;
+  }
+
+  /**
+   * Evaluates a condition using capped exponential backoff with randomization jitter until it
+   * evaluates to true or timeout occurs.
+   *
+   * @param predicate The condition to evaluate on each iteration. May throw IOException.
+   * @param maxElapsedTimeMillis Maximum wall-clock time to wait in milliseconds.
+   * @param initialIntervalMillis Initial sleep interval in milliseconds.
+   * @param maxIntervalMillis Maximum sleep interval in milliseconds.
+   * @param multiplier Multiplier for exponential backoff.
+   * @param randomizationFactor Randomization jitter factor (e.g., 0.15 for +/- 15% jitter).
+   * @return true if predicate returned true within the timeout, false otherwise.
+   * @throws IOException if the predicate throws an IOException (failing fast).
+   */
+  private static boolean pollWithExponentialBackoff(
+      ThrowingBooleanSupplier predicate,
+      long maxElapsedTimeMillis,
+      long initialIntervalMillis,
+      long maxIntervalMillis,
+      double multiplier,
+      double randomizationFactor)
+      throws IOException {
+    long startTimeNanos = System.nanoTime();
+    long sleepInterval = initialIntervalMillis;
+
+    while (true) {
+      if (predicate.getAsBoolean()) {
+        return true;
+      }
+
+      long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
+      long remainingMillis = maxElapsedTimeMillis - elapsedMillis;
+      if (remainingMillis <= 0) {
+        break;
+      }
+
+      // Inject randomization jitter to prevent thundering herd retry synchronization
+      double jitter =
+          1.0 + (ThreadLocalRandom.current().nextDouble() * 2.0 - 1.0) * randomizationFactor;
+      long randomizedSleep = Math.max(1L, (long) (sleepInterval * jitter));
+      long nextSleep = Math.min(randomizedSleep, remainingMillis);
+
+      try {
+        Thread.sleep(nextSleep);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        break;
+      }
+      sleepInterval = Math.min(maxIntervalMillis, (long) (sleepInterval * multiplier));
+    }
+
+    return false;
   }
 
   @Override

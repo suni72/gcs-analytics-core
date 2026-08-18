@@ -158,4 +158,65 @@ class GcsItemInfoTest {
     assertThat(decodedNullVal.keySet()).containsExactly("key");
     assertThat(decodedNullVal.get("key")).isEmpty();
   }
+
+  @Test
+  void isMetadataEqual_sameInstanceOrEqualContents_returnsTrue() {
+    Map<String, byte[]> map1 = ImmutableMap.of("key1", new byte[] {1, 2}, "key2", new byte[] {3});
+    Map<String, byte[]> map2 = ImmutableMap.of("key1", new byte[] {1, 2}, "key2", new byte[] {3});
+
+    boolean resultSame = GcsItemInfo.isMetadataEqual(map1, map1);
+    boolean resultEqual = GcsItemInfo.isMetadataEqual(map1, map2);
+
+    assertThat(resultSame).isTrue();
+    assertThat(resultEqual).isTrue();
+  }
+
+  @Test
+  void isMetadataEqual_oneNullOrDifferentSizes_returnsFalse() {
+    Map<String, byte[]> map1 = ImmutableMap.of("key1", new byte[] {1});
+    Map<String, byte[]> map2 = ImmutableMap.of("key1", new byte[] {1}, "key2", new byte[] {2});
+
+    boolean resultOneNull = GcsItemInfo.isMetadataEqual(map1, null);
+    boolean resultDifferentSize = GcsItemInfo.isMetadataEqual(map1, map2);
+
+    assertThat(resultOneNull).isFalse();
+    assertThat(resultDifferentSize).isFalse();
+  }
+
+  @Test
+  void isMetadataEqual_differentValuesOrMissingKeys_returnsFalse() {
+    Map<String, byte[]> map1 = ImmutableMap.of("key1", new byte[] {1, 2});
+    Map<String, byte[]> map2 = ImmutableMap.of("key1", new byte[] {9, 9});
+    Map<String, byte[]> map3 = ImmutableMap.of("key2", new byte[] {1, 2});
+    Map<String, byte[]> nullVal1 = Collections.singletonMap("key1", null);
+    Map<String, byte[]> nullVal2 = Collections.singletonMap("key2", null);
+
+    boolean resultDifferentValue = GcsItemInfo.isMetadataEqual(map1, map2);
+    boolean resultDifferentKey = GcsItemInfo.isMetadataEqual(map1, map3);
+    boolean resultNullValueMissingKey = GcsItemInfo.isMetadataEqual(nullVal1, nullVal2);
+
+    assertThat(resultDifferentValue).isFalse();
+    assertThat(resultDifferentKey).isFalse();
+    assertThat(resultNullValueMissingKey).isFalse();
+  }
+
+  @Test
+  void isMetadataEqual_emptyMaps_returnsTrue() {
+    Map<String, byte[]> empty1 = ImmutableMap.of();
+    Map<String, byte[]> empty2 = ImmutableMap.of();
+
+    boolean resultEmpty = GcsItemInfo.isMetadataEqual(empty1, empty2);
+
+    assertThat(resultEmpty).isTrue();
+  }
+
+  @Test
+  void isMetadataEqual_differentInsertionOrder_returnsTrue() {
+    Map<String, byte[]> map1 = ImmutableMap.of("keyA", new byte[] {1}, "keyB", new byte[] {2});
+    Map<String, byte[]> map2 = ImmutableMap.of("keyB", new byte[] {2}, "keyA", new byte[] {1});
+
+    boolean result = GcsItemInfo.isMetadataEqual(map1, map2);
+
+    assertThat(result).isTrue();
+  }
 }
