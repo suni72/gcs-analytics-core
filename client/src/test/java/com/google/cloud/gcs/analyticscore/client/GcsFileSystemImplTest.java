@@ -822,8 +822,6 @@ class GcsFileSystemImplTest {
   void mkdirs_flatBucket_createsEmptyObjectWithTrailingSlash() throws IOException {
     URI dirUri = URI.create("gs://test-bucket/dir/subdir");
     when(mockClient.isHnsBucket("test-bucket")).thenReturn(false);
-    when(mockClient.getGcsItemInfo(any(GcsItemId.class)))
-        .thenThrow(new FileNotFoundException("Object not found"));
 
     gcsFileSystem.mkdirs(dirUri);
 
@@ -836,8 +834,6 @@ class GcsFileSystemImplTest {
   void mkdirs_hnsBucket_createsFolderRecursiveWithoutTrailingSlash() throws IOException {
     URI dirUri = URI.create("gs://test-bucket/dir/subdir/");
     when(mockClient.isHnsBucket("test-bucket")).thenReturn(true);
-    when(mockClient.getGcsItemInfo(any(GcsItemId.class)))
-        .thenThrow(new FileNotFoundException("Object not found"));
 
     gcsFileSystem.mkdirs(dirUri);
 
@@ -857,7 +853,7 @@ class GcsFileSystemImplTest {
             .setSize(100L)
             .setContentGeneration(1L)
             .build();
-    when(mockClient.getGcsItemInfo(eq(conflictingFileId))).thenReturn(mockFileInfo);
+    when(mockClient.getGcsObjectInfos(any())).thenReturn(ImmutableList.of(mockFileInfo));
 
     assertThrows(FileAlreadyExistsException.class, () -> gcsFileSystem.mkdirs(dirUri));
   }
@@ -875,7 +871,7 @@ class GcsFileSystemImplTest {
     try (GcsFileSystemImpl customFs = new GcsFileSystemImpl(mockClient, options)) {
       customFs.mkdirs(dirUri);
 
-      verify(mockClient, never()).getGcsItemInfo(any(GcsItemId.class));
+      verify(mockClient, never()).getGcsObjectInfos(any());
       GcsItemId expectedItemId =
           GcsItemId.builder().setBucketName("test-bucket").setObjectName("dir/subdir/").build();
       verify(mockClient).createEmptyObject(expectedItemId);
