@@ -37,6 +37,7 @@ import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.gcs.analyticscore.common.telemetry.TelemetryOptions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;

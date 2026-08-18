@@ -43,11 +43,13 @@ class GcsFileSystemImplIntegrationTest {
 
     private Storage storage;
     private List<BlobId> blobsToDelete;
+    private List<String> bucketsToDelete;
 
     @BeforeEach
     void setUp() {
         storage = StorageOptions.getDefaultInstance().getService();
         blobsToDelete = new ArrayList<>();
+        bucketsToDelete = new ArrayList<>();
     }
 
     @AfterEach
@@ -56,6 +58,13 @@ class GcsFileSystemImplIntegrationTest {
             for (BlobId blobId : blobsToDelete) {
                 try {
                     storage.delete(blobId);
+                } catch (Exception e) {
+                    // Ignore cleanup errors
+                }
+            }
+            for (String bucketName : bucketsToDelete) {
+                try {
+                    storage.delete(bucketName);
                 } catch (Exception e) {
                     // Ignore cleanup errors
                 }
@@ -294,6 +303,20 @@ class GcsFileSystemImplIntegrationTest {
                 UriUtil.getItemIdFromString(dirUri.toString()))).isNotNull();
     }
 
+    @Test
+    @EnabledIfSystemProperty(named = "gcs.integration.test.project-id", matches = ".+")
+    void mkdirs_newBucket_createsBucket_success() throws IOException {
+        String bucketName = "test-mkdirs-bucket-" + UUID.randomUUID();
+        URI bucketUri = URI.create("gs://" + bucketName);
+        bucketsToDelete.add(bucketName);
+        GcsFileSystemImpl gcsFileSystem = createFileSystem(GcsClientOptions.builder().build());
+
+        gcsFileSystem.mkdirs(bucketUri);
+
+        assertThat(gcsFileSystem.getGcsClient().getBucketInfo(
+                GcsItemId.builder().setBucketName(bucketName).build())).isNotNull();
+    }
+
     private static class TestWriteContext {
         final URI uri;
         final GcsItemId itemId;
@@ -309,8 +332,13 @@ class GcsFileSystemImplIntegrationTest {
     }
 
     private GcsFileSystemImpl createFileSystem(GcsClientOptions clientOptions) {
+        GcsClientOptions.Builder builder = clientOptions.toBuilder();
+        String projectId = System.getProperty("gcs.integration.test.project-id");
+        if (projectId != null && !projectId.isEmpty()) {
+            builder.setProjectId(projectId);
+        }
         GcsFileSystemOptions options = GcsFileSystemOptions.builder()
-                .setGcsClientOptions(clientOptions)
+                .setGcsClientOptions(builder.build())
                 .build();
         return new GcsFileSystemImpl(options);
     }
