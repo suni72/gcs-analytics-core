@@ -22,6 +22,8 @@ import java.util.List;
 
 @VisibleForTesting
 public interface GcsClient {
+  String PATH_DELIMITER = "/";
+
   /** Opens a new read channel. */
   VectoredSeekableByteChannel openReadChannel(GcsItemInfo itemInfo, GcsReadOptions readOptions)
       throws IOException;
@@ -44,6 +46,12 @@ public interface GcsClient {
   /** Fetches object metadata. */
   GcsItemInfo getGcsItemInfo(GcsItemId itemId) throws IOException;
 
+  /**
+   * Fetches metadata for a list of GCS objects concurrently. Returns a list in the same order as
+   * input itemIds, with null at indexes where the object does not exist.
+   */
+  List<GcsItemInfo> getGcsObjectInfos(List<GcsItemId> itemIds) throws IOException;
+
   /** Fetches bucket metadata. */
   GcsItemInfo getBucketInfo(GcsItemId itemId) throws IOException;
 
@@ -55,6 +63,15 @@ public interface GcsClient {
    * for fast directory emptiness checks.
    */
   List<GcsItemInfo> listFirstObjectWithPrefix(GcsItemId prefixId) throws IOException;
+
+  /** Creates a GCS bucket. */
+  void createBucket(String bucketName) throws IOException;
+
+  /** Creates a 0-byte empty object (used for flat directory markers). */
+  void createEmptyObject(GcsItemId itemId) throws IOException;
+
+  /** Creates a folder in HNS buckets. */
+  void createFolder(GcsItemId itemId, boolean recursive) throws IOException;
 
   boolean isHnsBucket(String bucketName) throws IOException;
 

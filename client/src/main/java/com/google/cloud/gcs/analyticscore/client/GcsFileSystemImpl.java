@@ -15,8 +15,10 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.cloud.gcs.analyticscore.client.GcsClient.PATH_DELIMITER;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 import com.google.auth.Credentials;
 import com.google.cloud.gcs.analyticscore.common.GcsAnalyticsCoreTelemetryConstants;
@@ -36,7 +38,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -222,6 +226,47 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
     // Delegate the actual SDK interaction and exception handling to the internal client
     return gcsClient.createWriteChannel(itemId, writeOptions);
+  }
+
+  @VisibleForTesting
+  void checkNoFilesConflictingWithDirs(GcsItemId itemId) throws IOException {
+    String objectName = itemId.getObjectName().orElse("");
+    List<String> dirs = getDirs(objectName);
+    if (dirs.isEmpty()) {
+      return;
+    }
+    ImmutableList.Builder<GcsItemId> fileIds = ImmutableList.builderWithExpectedSize(dirs.size());
+    for (String dir : dirs) {
+      fileIds.add(
+          GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build());
+    }
+
+    for (GcsItemInfo itemInfo : gcsClient.getGcsObjectInfos(fileIds.build())) {
+      if (itemInfo != null) {
+        throw new FileAlreadyExistsException(
+            String.format(
+                "Cannot create directory '%s' because of existing file '%s'",
+                itemId, itemInfo.getItemId()));
+      }
+    }
+  }
+
+  @VisibleForTesting
+  static ImmutableList<String> getDirs(String objectName) {
+    if (isNullOrEmpty(objectName)) {
+      return ImmutableList.of();
+    }
+    String normalized = UriUtil.ensureTrailingSlash(objectName);
+    ImmutableList.Builder<String> dirs = ImmutableList.builder();
+    int index = 0;
+    while ((index = normalized.indexOf(PATH_DELIMITER, index)) >= 0) {
+      String dir = normalized.substring(0, index);
+      if (!dir.isEmpty()) {
+        dirs.add(dir);
+      }
+      index += PATH_DELIMITER.length();
+    }
+    return dirs.build();
   }
 
   @VisibleForTesting
