@@ -54,6 +54,7 @@ public abstract class GcsClientOptions {
   private static final String TEMPORARY_PATHS_KEY = "channel.write.temporary-paths";
   private static final String EMPTY_OBJECT_CREATION_MAX_WAIT_TIME_KEY =
       "max.wait.for.empty.object.creation.duration";
+  private static final String BATCH_THREADS_KEY = "batch.threads";
 
   /**
    * Upload strategies matching the configurations offered by the google-cloud-storage Java client.
@@ -101,6 +102,8 @@ public abstract class GcsClientOptions {
 
   public abstract Duration getMaxWaitTimeForEmptyObjectCreation();
 
+  public abstract int getBatchThreads();
+
   public abstract Builder toBuilder();
 
   // TODO: Benchmark and determine the optimal default values for write options.
@@ -115,7 +118,8 @@ public abstract class GcsClientOptions {
         .setPcuPartFileCleanupType(PartFileCleanupType.ALWAYS)
         .setPcuPartFileNamePrefix("")
         .setTemporaryPaths(ImmutableSet.of())
-        .setMaxWaitTimeForEmptyObjectCreation(Duration.ofSeconds(3));
+        .setMaxWaitTimeForEmptyObjectCreation(Duration.ofSeconds(3))
+        .setBatchThreads(15);
   }
 
   public static GcsClientOptions createFromOptions(
@@ -169,6 +173,10 @@ public abstract class GcsClientOptions {
         .map(Duration::ofMillis)
         .ifPresent(optionsBuilder::setMaxWaitTimeForEmptyObjectCreation);
 
+    Optional.ofNullable(analyticsCoreOptions.get(prefix + BATCH_THREADS_KEY))
+        .map(val -> ConfigurationUtil.safeParseInteger(prefix + BATCH_THREADS_KEY, val))
+        .ifPresent(optionsBuilder::setBatchThreads);
+
     optionsBuilder.setGcsReadOptions(
         GcsReadOptions.createFromOptions(analyticsCoreOptions, prefix));
     optionsBuilder.setGcsWriteOptions(
@@ -212,6 +220,8 @@ public abstract class GcsClientOptions {
     }
 
     public abstract Builder setMaxWaitTimeForEmptyObjectCreation(Duration maxWaitTime);
+
+    public abstract Builder setBatchThreads(int batchThreads);
 
     public abstract GcsClientOptions build();
   }

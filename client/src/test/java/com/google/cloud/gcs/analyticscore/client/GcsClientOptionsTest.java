@@ -49,6 +49,7 @@ class GcsClientOptionsTest {
     assertThat(options.getPcuPartFileNamePrefix()).isEmpty();
     assertThat(options.getTemporaryPaths()).isEmpty();
     assertThat(options.getMaxWaitTimeForEmptyObjectCreation()).isEqualTo(Duration.ofSeconds(3));
+    assertThat(options.getBatchThreads()).isEqualTo(15);
   }
 
   @Test
@@ -67,6 +68,7 @@ class GcsClientOptionsTest {
             .setPcuPartFileNamePrefix("temp-prefix-")
             .setTemporaryPaths(ImmutableList.of("/tmp/path1", "/tmp/path2"))
             .setMaxWaitTimeForEmptyObjectCreation(Duration.ofMillis(1500))
+            .setBatchThreads(8)
             .build();
 
     assertThat(options.getProjectId()).hasValue("test-project");
@@ -83,6 +85,7 @@ class GcsClientOptionsTest {
     assertThat(options.getPcuPartFileNamePrefix()).isEqualTo("temp-prefix-");
     assertThat(options.getTemporaryPaths()).containsExactly("/tmp/path1", "/tmp/path2").inOrder();
     assertThat(options.getMaxWaitTimeForEmptyObjectCreation()).isEqualTo(Duration.ofMillis(1500));
+    assertThat(options.getBatchThreads()).isEqualTo(8);
   }
 
   @Test
@@ -101,6 +104,7 @@ class GcsClientOptionsTest {
             .put("gcs.channel.write.pcu.part-file.name-prefix", "temp-prefix-")
             .put("gcs.channel.write.temporary-paths", "/tmp/path1, /tmp/path2")
             .put("gcs.max.wait.for.empty.object.creation.duration", "5000")
+            .put("gcs.batch.threads", "8")
             .build();
 
     GcsClientOptions options = GcsClientOptions.createFromOptions(rawOptions, "gcs.");
@@ -119,6 +123,7 @@ class GcsClientOptionsTest {
     assertThat(options.getPcuPartFileNamePrefix()).isEqualTo("temp-prefix-");
     assertThat(options.getTemporaryPaths()).containsExactly("/tmp/path1", "/tmp/path2").inOrder();
     assertThat(options.getMaxWaitTimeForEmptyObjectCreation()).isEqualTo(Duration.ofMillis(5000));
+    assertThat(options.getBatchThreads()).isEqualTo(8);
   }
 
   @Test
@@ -158,6 +163,11 @@ class GcsClientOptionsTest {
   @Test
   void createFromOptions_withOverflowingPcuBufferCapacity_throwsIllegalArgumentException() {
     assertOverflowThrows("gcs.channel.write.pcu.buffer.capacity-bytes");
+  }
+
+  @Test
+  void createFromOptions_withOverflowingBatchThreads_throwsIllegalArgumentException() {
+    assertOverflowThrows("gcs.batch.threads");
   }
 
   private void assertOverflowThrows(String key) {
