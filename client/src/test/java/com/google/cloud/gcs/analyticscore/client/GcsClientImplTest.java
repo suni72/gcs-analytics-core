@@ -430,8 +430,6 @@ class GcsClientImplTest {
 
   @Test
   void getBucketProperties_storageThrows500_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     doThrow(new StorageException(500, "Internal Error"))
         .when(mockStorage)
         .get(eq(TEST_ERROR_BUCKET), any(BucketGetOption.class));
@@ -447,6 +445,11 @@ class GcsClientImplTest {
     return new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
       @Override
       protected Storage createStorage(Optional<Credentials> credentials) {
+        return mockStorage;
+      }
+
+      @Override
+      protected Storage createGrpcStorage(Optional<Credentials> credentials) {
         return mockStorage;
       }
     };
@@ -1430,27 +1433,36 @@ class GcsClientImplTest {
   }
 
   @Test
-  void close_withStorageControlClient_closesBoth() throws Exception {
-    clientWithMock.lazyGetStorageControlClient();
+  void close_withAllClientsInitialized_closesAllAndNullsReferences() throws Exception {
+    Storage mockGrpcStorage = mock(Storage.class);
+    clientWithMock.storageControlClient = mockControlClient;
+    clientWithMock.grpcStorage = mockGrpcStorage;
 
     clientWithMock.close();
 
     verify(mockStorage).close();
     verify(mockControlClient).close();
+    verify(mockGrpcStorage).close();
     assertThat(clientWithMock.storageControlClient).isNull();
+    assertThat(clientWithMock.grpcStorage).isNull();
   }
 
   @Test
   void close_whenUnderlyingClientsThrowException_suppressesException() throws Exception {
+    Storage mockGrpcStorage = mock(Storage.class);
     doThrow(new RuntimeException("storage close error")).when(mockStorage).close();
+    doThrow(new RuntimeException("grpc storage close error")).when(mockGrpcStorage).close();
     doThrow(new RuntimeException("control client close error")).when(mockControlClient).close();
     clientWithMock.storageControlClient = mockControlClient;
+    clientWithMock.grpcStorage = mockGrpcStorage;
 
     clientWithMock.close();
 
     verify(mockStorage).close();
+    verify(mockGrpcStorage).close();
     verify(mockControlClient).close();
     assertThat(clientWithMock.storageControlClient).isNull();
+    assertThat(clientWithMock.grpcStorage).isNull();
   }
 
   @Test
@@ -1475,12 +1487,10 @@ class GcsClientImplTest {
 
   @Test
   void lazyGetStorageControlClient_initializesWhenNullAndReusesInstance() throws Exception {
-    StorageControlClient createdInstance = clientWithMock.lazyGetStorageControlClient();
-    StorageControlClient cachedInstance = clientWithMock.lazyGetStorageControlClient();
-
-    assertThat(createdInstance).isSameInstanceAs(mockControlClient);
-    assertThat(cachedInstance).isSameInstanceAs(mockControlClient);
-    assertThat(clientWithMock.storageControlClient).isSameInstanceAs(mockControlClient);
+    assertLazyInitializationReusesInstance(
+        clientWithMock::lazyGetStorageControlClient,
+        () -> clientWithMock.storageControlClient,
+        mockControlClient);
   }
 
   @Test
@@ -1496,26 +1506,92 @@ class GcsClientImplTest {
             return mockClientInstance;
           }
         };
+
+    assertConcurrentInitializationInstantiatesExactlyOnce(
+        client::lazyGetStorageControlClient, factoryInvocations, mockClientInstance);
+  }
+
+  @Test
+  void lazyGetGrpcStorage_initializesWhenNullAndReusesInstance() throws Exception {
+    assertLazyInitializationReusesInstance(
+        clientWithMock::lazyGetGrpcStorage, () -> clientWithMock.grpcStorage, mockStorage);
+  }
+
+  @Test
+  void lazyGetGrpcStorage_bidiReadEnabled_returnsStorageDirectly() {
+    GcsClientOptions options =
+        GcsClientOptions.builder()
+            .setProjectId(TEST_PROJECT)
+            .setGcsReadOptions(GcsReadOptions.builder().setBidiReadEnabled(true).build())
+            .build();
+    GcsClientImpl client =
+        new GcsClientImpl(options, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return mockStorage;
+          }
+        };
+
+    Storage actualStorage = client.lazyGetGrpcStorage();
+
+    assertThat(actualStorage).isSameInstanceAs(mockStorage);
+    assertThat(client.grpcStorage).isNull();
+  }
+
+  @Test
+  void lazyGetGrpcStorage_concurrentCalls_instantiatesExactlyOnce() throws Exception {
+    Storage mockStorageInstance = mock(Storage.class);
+    AtomicInteger factoryInvocations = new AtomicInteger();
+    GcsClientImpl client =
+        new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createGrpcStorage(Optional<Credentials> credentials) {
+            factoryInvocations.incrementAndGet();
+            return mockStorageInstance;
+          }
+        };
+
+    assertConcurrentInitializationInstantiatesExactlyOnce(
+        client::lazyGetGrpcStorage, factoryInvocations, mockStorageInstance);
+  }
+
+  @FunctionalInterface
+  private interface ThrowingSupplier<T> {
+    T get() throws Exception;
+  }
+
+  private <T> void assertLazyInitializationReusesInstance(
+      ThrowingSupplier<T> lazyClientGetter, Supplier<T> clientAccessor, T expectedInstance)
+      throws Exception {
+    T createdInstance = lazyClientGetter.get();
+    T cachedInstance = lazyClientGetter.get();
+
+    assertThat(createdInstance).isSameInstanceAs(expectedInstance);
+    assertThat(cachedInstance).isSameInstanceAs(expectedInstance);
+    assertThat(clientAccessor.get()).isSameInstanceAs(expectedInstance);
+  }
+
+  private <T> void assertConcurrentInitializationInstantiatesExactlyOnce(
+      ThrowingSupplier<T> lazyClientGetter, AtomicInteger factoryInvocations, T expectedInstance)
+      throws Exception {
     ExecutorService executor = Executors.newFixedThreadPool(2);
     CountDownLatch ready = new CountDownLatch(2);
     CountDownLatch start = new CountDownLatch(1);
-    Callable<StorageControlClient> task =
+    Callable<T> task =
         () -> {
           ready.countDown();
           start.await();
-          return client.lazyGetStorageControlClient();
+          return lazyClientGetter.get();
         };
 
     try {
-      Future<StorageControlClient> f1 = executor.submit(task);
-      Future<StorageControlClient> f2 = executor.submit(task);
+      Future<T> f1 = executor.submit(task);
+      Future<T> f2 = executor.submit(task);
       ready.await(5, TimeUnit.SECONDS);
       start.countDown();
-      StorageControlClient result1 = f1.get(5, TimeUnit.SECONDS);
-      StorageControlClient result2 = f2.get(5, TimeUnit.SECONDS);
 
-      assertThat(result1).isSameInstanceAs(mockClientInstance);
-      assertThat(result2).isSameInstanceAs(mockClientInstance);
+      assertThat(f1.get(5, TimeUnit.SECONDS)).isSameInstanceAs(expectedInstance);
+      assertThat(f2.get(5, TimeUnit.SECONDS)).isSameInstanceAs(expectedInstance);
       assertThat(factoryInvocations.get()).isEqualTo(1);
     } finally {
       executor.shutdownNow();
@@ -1557,10 +1633,23 @@ class GcsClientImplTest {
       }
 
       @Override
+      protected Storage createGrpcStorage(Optional<Credentials> credentials) {
+        return mockStorage;
+      }
+
+      @Override
       protected StorageControlClient createStorageControlClient(Optional<Credentials> credentials) {
         return mockControlClient;
       }
     };
+  }
+
+  @Test
+  void createGrpcStorage_withCredentials_createsClient() throws Exception {
+    try (Storage grpcClient =
+        gcsClient.createGrpcStorage(Optional.of(NoCredentials.getInstance()))) {
+      assertThat(grpcClient).isNotNull();
+    }
   }
 
   @Test
@@ -1598,7 +1687,6 @@ class GcsClientImplTest {
 
   @Test
   void listFirstObjectWithPrefix_storageThrows404_throwsFileNotFoundException() {
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.list(eq(TEST_BUCKET), any(Storage.BlobListOption[].class)))
         .thenThrow(new StorageException(404, "Bucket not found"));
 
@@ -1612,7 +1700,6 @@ class GcsClientImplTest {
 
   @Test
   void listFirstObjectWithPrefix_storageThrows500_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.list(eq(TEST_BUCKET), any(Storage.BlobListOption[].class)))
         .thenThrow(new StorageException(500, "Internal error"));
 

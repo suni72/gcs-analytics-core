@@ -104,6 +104,7 @@ class GcsClientImpl implements GcsClient {
       ImmutableSet.of(429, 500, 502, 503, 504);
 
   @VisibleForTesting Storage storage;
+  @VisibleForTesting volatile Storage grpcStorage;
   private final GcsClientOptions clientOptions;
   private final Optional<Credentials> credentials;
   private Supplier<ExecutorService> executorServiceSupplier;
@@ -148,7 +149,7 @@ class GcsClientImpl implements GcsClient {
 
     if (readOptions.isBidiReadEnabled()) {
       return new GcsBidiReadChannel(
-          storage, gcsItemInfo, readOptions, executorServiceSupplier, telemetry);
+          lazyGetGrpcStorage(), gcsItemInfo, readOptions, executorServiceSupplier, telemetry);
     }
 
     return new GcsReadChannel(
@@ -163,7 +164,12 @@ class GcsClientImpl implements GcsClient {
     ItemInfoProvider itemInfoProvider = this::getGcsItemInfo;
     if (readOptions.isBidiReadEnabled()) {
       return new GcsBidiReadChannel(
-          storage, gcsItemId, readOptions, executorServiceSupplier, telemetry, itemInfoProvider);
+          lazyGetGrpcStorage(),
+          gcsItemId,
+          readOptions,
+          executorServiceSupplier,
+          telemetry,
+          itemInfoProvider);
     } else {
       return new GcsReadChannel(
           storage, gcsItemId, readOptions, executorServiceSupplier, telemetry, itemInfoProvider);
@@ -400,6 +406,14 @@ class GcsClientImpl implements GcsClient {
       LOG.debug("Exception while closing storage instance", e);
     }
     synchronized (this) {
+      if (grpcStorage != null) {
+        try {
+          grpcStorage.close();
+        } catch (Exception e) {
+          LOG.debug("Exception while closing grpcStorage instance", e);
+        }
+        grpcStorage = null;
+      }
       if (storageControlClient != null) {
         try {
           storageControlClient.close();
@@ -479,8 +493,6 @@ class GcsClientImpl implements GcsClient {
       targetOptions.add(BlobTargetOption.encryptionKey(options.getEncryptionKey().get()));
     }
 
-    // TODO: directory creation should call createFolder rather than
-    // createAppendableEmptyObject when a Rapid bucket (HNS enabled) is detected.
     if (isRapidBucket(itemId.getBucketName())) {
       createAppendableEmptyObject(itemId, options);
     } else {
@@ -505,7 +517,8 @@ class GcsClientImpl implements GcsClient {
         options.toBuilder().setOverwriteExisting(false).build().generateWriteOptions(itemId);
     try {
       BlobAppendableUpload upload =
-          storage.blobAppendableUpload(blobInfo, BlobAppendableUploadConfig.of(), writeOptions);
+          lazyGetGrpcStorage()
+              .blobAppendableUpload(blobInfo, BlobAppendableUploadConfig.of(), writeOptions);
       try (AppendableUploadWriteableByteChannel channel = upload.open()) {
         channel.write(ByteBuffer.wrap(new byte[0]));
         channel.finalizeAndClose();
@@ -657,11 +670,37 @@ class GcsClientImpl implements GcsClient {
   }
 
   @VisibleForTesting
+  Storage lazyGetGrpcStorage() {
+    if (clientOptions.getGcsReadOptions().isBidiReadEnabled()) {
+      return this.storage;
+    }
+    Storage result = this.grpcStorage;
+    if (result == null) {
+      synchronized (this) {
+        result = this.grpcStorage;
+        if (result == null) {
+          this.grpcStorage = result = createGrpcStorage(this.credentials);
+        }
+      }
+    }
+    return result;
+  }
+
+  @VisibleForTesting
+  protected Storage createGrpcStorage(Optional<Credentials> credentials) {
+    return buildStorage(StorageOptions.grpc(), credentials);
+  }
+
+  @VisibleForTesting
   protected Storage createStorage(Optional<Credentials> credentials) {
-    StorageOptions.Builder builder =
+    return buildStorage(
         clientOptions.getGcsReadOptions().isBidiReadEnabled()
             ? StorageOptions.grpc()
-            : StorageOptions.newBuilder();
+            : StorageOptions.newBuilder(),
+        credentials);
+  }
+
+  private Storage buildStorage(StorageOptions.Builder builder, Optional<Credentials> credentials) {
     String userAgent = getUserAgent();
     builder.setHeaderProvider(FixedHeaderProvider.create(ImmutableMap.of("User-Agent", userAgent)));
     clientOptions.getProjectId().ifPresent(builder::setProjectId);
