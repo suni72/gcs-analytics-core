@@ -53,7 +53,7 @@ public abstract class GcsClientOptions {
       "channel.write.pcu.part-file.name-prefix";
   private static final String TEMPORARY_PATHS_KEY = "channel.write.temporary-paths";
   private static final String EMPTY_OBJECT_CREATION_MAX_WAIT_TIME_KEY =
-      "max.wait.for.empty.object.creation";
+      "max.wait.for.empty.object.creation.duration";
 
   /**
    * Upload strategies matching the configurations offered by the google-cloud-storage Java client.

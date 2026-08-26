@@ -34,7 +34,7 @@ class GcsFileSystemOptionsTest {
             "fs.gs.client.type", "GRPC_CLIENT",
             "fs.gs.analytics-core.read.thread.count", "32",
             "fs.gs.analytics-core.hierarchical.namespace.enable", "true",
-            "fs.gs.create.items.conflict.check.enable", "false");
+            "fs.gs.analytics-core.create.items.conflict.check.enable", "false");
 
     GcsFileSystemOptions options = GcsFileSystemOptions.createFromOptions(properties, "fs.gs.");
 

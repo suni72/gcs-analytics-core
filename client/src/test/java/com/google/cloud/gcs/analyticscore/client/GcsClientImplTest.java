@@ -1123,7 +1123,6 @@ class GcsClientImplTest {
   @Test
   void createBucket_success() throws IOException {
     clientWithMock.createBucket(TEST_BUCKET_NAME);
-
     verify(mockStorage).create(BucketInfo.of(TEST_BUCKET_NAME));
   }
 
@@ -1131,7 +1130,6 @@ class GcsClientImplTest {
   void createBucket_alreadyExists_throwsFileAlreadyExistsException() {
     when(mockStorage.create(any(BucketInfo.class)))
         .thenThrow(new StorageException(409, "Bucket already exists"));
-
     assertThrows(
         FileAlreadyExistsException.class, () -> clientWithMock.createBucket(TEST_BUCKET_NAME));
   }
@@ -1140,7 +1138,6 @@ class GcsClientImplTest {
   void createBucket_storageException_throwsIOException() {
     when(mockStorage.create(any(BucketInfo.class)))
         .thenThrow(new StorageException(500, "Internal Server Error"));
-
     assertThrows(IOException.class, () -> clientWithMock.createBucket(TEST_BUCKET_NAME));
   }
 
@@ -1453,7 +1450,7 @@ class GcsClientImplTest {
 
     verify(mockStorage).close();
     verify(mockControlClient).close();
-    assertThat(localClient.storageControlClient).isNull();
+    assertThat(clientWithMock.storageControlClient).isNull();
   }
 
   @Test

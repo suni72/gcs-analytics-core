@@ -29,7 +29,7 @@ public abstract class GcsFileSystemOptions {
   private static final String METADATA_LOOKUP_PARALLEL_ENABLED_KEY =
       "analytics-core.metadata.lookup.parallel.enable";
   private static final String CREATE_ITEMS_CONFLICT_CHECK_ENABLE_KEY =
-      "create.items.conflict.check.enable";
+      "analytics-core.create.items.conflict.check.enable";
 
   /** Cloud Storage client to use. */
   public enum ClientType {

@@ -160,11 +160,11 @@ public abstract class GcsItemInfo {
     for (Map.Entry<String, byte[]> entry : map1.entrySet()) {
       String key = entry.getKey();
       byte[] val1 = entry.getValue();
-      byte[] val2 = map2.get(key);
-      if (!Arrays.equals(val1, val2)) {
+      if (val1 == null && !map2.containsKey(key)) {
         return false;
       }
-      if (val1 == null && !map2.containsKey(key)) {
+      byte[] val2 = map2.get(key);
+      if (!Arrays.equals(val1, val2)) {
         return false;
       }
     }

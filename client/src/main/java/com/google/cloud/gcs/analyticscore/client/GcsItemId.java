@@ -82,11 +82,6 @@ public abstract class GcsItemId {
         && (this.getObjectName().isEmpty() || this.getObjectName().get().isEmpty());
   }
 
-  /** Returns true if this identifier represents the GCS global root. */
-  public boolean isRoot() {
-    return this.equals(ROOT);
-  }
-
   /**
    * Returns true if this identifier represents a directory (root, a bucket, or an object path
    * ending with a trailing slash).

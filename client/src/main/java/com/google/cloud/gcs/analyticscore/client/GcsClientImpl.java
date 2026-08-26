@@ -97,6 +97,7 @@ class GcsClientImpl implements GcsClient {
           BucketField.TIME_CREATED,
           BucketField.UPDATED);
   private static final String USER_AGENT_PREFIX = "gcs-analytics-core/";
+  private static final String RAPID_STORAGE_CLASS = "RAPID";
   private static final GcsWriteOptions EMPTY_OBJECT_WRITE_OPTIONS =
       GcsWriteOptions.builder().setEnsureEmptyObjectsMetadataMatch(false).build();
   private static final ImmutableSet<Integer> RETRYABLE_GET_METADATA_ERROR_CODES =
@@ -415,6 +416,7 @@ class GcsClientImpl implements GcsClient {
     checkNotNull(bucketName, "bucketName must not be null");
     checkArgument(!bucketName.isEmpty(), "bucketName must not be empty");
     try {
+      // TODO: Support creation of HNS bucket when the HNS flag is on.
       storage.create(BucketInfo.of(bucketName));
     } catch (StorageException e) {
       if (e.getCode() == 409) {
@@ -477,6 +479,8 @@ class GcsClientImpl implements GcsClient {
       targetOptions.add(BlobTargetOption.encryptionKey(options.getEncryptionKey().get()));
     }
 
+    // TODO: directory creation should call createFolder rather than
+    // createAppendableEmptyObject when a Rapid bucket (HNS enabled) is detected.
     if (isRapidBucket(itemId.getBucketName())) {
       createAppendableEmptyObject(itemId, options);
     } else {
@@ -489,7 +493,7 @@ class GcsClientImpl implements GcsClient {
     Bucket bucket = storage.get(bucketName);
     return bucket != null
         && bucket.getStorageClass() != null
-        && "RAPID".equalsIgnoreCase(bucket.getStorageClass().toString());
+        && RAPID_STORAGE_CLASS.equalsIgnoreCase(bucket.getStorageClass().toString());
   }
 
   private void createAppendableEmptyObject(GcsItemId itemId, GcsWriteOptions options)

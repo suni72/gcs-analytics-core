@@ -100,7 +100,7 @@ class GcsClientOptionsTest {
             .put("gcs.channel.write.pcu.part-file.cleanup-type", "on_success")
             .put("gcs.channel.write.pcu.part-file.name-prefix", "temp-prefix-")
             .put("gcs.channel.write.temporary-paths", "/tmp/path1, /tmp/path2")
-            .put("gcs.max.wait.for.empty.object.creation", "5000")
+            .put("gcs.max.wait.for.empty.object.creation.duration", "5000")
             .build();
 
     GcsClientOptions options = GcsClientOptions.createFromOptions(rawOptions, "gcs.");
