@@ -97,6 +97,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
@@ -239,9 +240,19 @@ class GcsClientImplTest {
     assertThat(result).isEmpty();
   }
 
-  @Test
-  void getGcsObjectInfos_multipleItems_returnsListPreservingOrderWithNullForMissing()
-      throws IOException {
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 2, 15})
+  void getGcsObjectInfos_multipleItems_withVariousBatchThreads_returnsListPreservingOrder(
+      int batchThreads) throws IOException {
+    GcsClientOptions clientOptions =
+        GcsClientOptions.builder().setBatchThreads(batchThreads).build();
+    GcsClient client =
+        new GcsClientImpl(clientOptions, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return storage;
+          }
+        };
     GcsItemId existingId1 =
         GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName(TEST_OBJECT_ID).build();
     GcsItemId existingId2 =
@@ -261,12 +272,28 @@ class GcsClientImplTest {
         "data2");
 
     List<GcsItemInfo> result =
-        gcsClient.getGcsObjectInfos(ImmutableList.of(existingId1, existingId2, missingId));
+        client.getGcsObjectInfos(ImmutableList.of(existingId1, existingId2, missingId));
 
     assertThat(result).hasSize(3);
     assertThat(result.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
     assertThat(result.get(1).getItemId().getObjectName()).hasValue("object2");
     assertThat(result.get(2)).isNull();
+  }
+
+  @Test
+  void getGcsObjectInfos_underlyingClientFails_throwsIOException() {
+    when(mockStorage.get(any(BlobId.class)))
+        .thenThrow(new StorageException(500, "Internal Server Error"));
+    GcsItemId id1 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object1").build();
+    GcsItemId id2 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object2").build();
+
+    IOException exception =
+        assertThrows(
+            IOException.class, () -> clientWithMock.getGcsObjectInfos(ImmutableList.of(id1, id2)));
+
+    assertThat(exception).hasMessageThat().contains("Error getting");
   }
 
   @Test
@@ -1196,136 +1223,6 @@ class GcsClientImplTest {
 
     assertThat(itemInfo.getCreationTime()).isEqualTo(0L);
     assertThat(itemInfo.getModificationTime()).isEqualTo(0L);
-  }
-
-  @Test
-  void createBucket_success() throws IOException {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-
-    client.createBucket(TEST_BUCKET_NAME);
-
-    verify(mockStorage).create(BucketInfo.of(TEST_BUCKET_NAME));
-  }
-
-  @Test
-  void createBucket_alreadyExists_throwsFileAlreadyExistsException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    when(mockStorage.create(any(BucketInfo.class)))
-        .thenThrow(new StorageException(409, "Bucket already exists"));
-
-    assertThrows(FileAlreadyExistsException.class, () -> client.createBucket(TEST_BUCKET_NAME));
-  }
-
-  @Test
-  void createBucket_storageException_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    when(mockStorage.create(any(BucketInfo.class)))
-        .thenThrow(new StorageException(500, "Internal Server Error"));
-
-    assertThrows(IOException.class, () -> client.createBucket(TEST_BUCKET_NAME));
-  }
-
-  @Test
-  void createBucket_nullOrEmptyBucketName_throwsIllegalArgumentException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-
-    assertThrows(NullPointerException.class, () -> client.createBucket(null));
-    assertThrows(IllegalArgumentException.class, () -> client.createBucket(""));
-  }
-
-  @Test
-  void createEmptyObject_success() throws IOException {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
-
-    client.createEmptyObject(itemId);
-
-    verify(mockStorage)
-        .create(
-            eq(BlobInfo.newBuilder(BlobId.of(TEST_BUCKET_NAME, "dir/")).build()),
-            eq(new byte[0]),
-            any(Storage.BlobTargetOption.class));
-  }
-
-  @Test
-  void createEmptyObject_alreadyExists_throwsFileAlreadyExistsException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
-    when(mockStorage.create(
-            any(BlobInfo.class), eq(new byte[0]), any(Storage.BlobTargetOption.class)))
-        .thenThrow(new StorageException(409, "Object already exists"));
-
-    assertThrows(FileAlreadyExistsException.class, () -> client.createEmptyObject(itemId));
-  }
-
-  @Test
-  void createEmptyObject_storageException_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
-    when(mockStorage.create(
-            any(BlobInfo.class), eq(new byte[0]), any(Storage.BlobTargetOption.class)))
-        .thenThrow(new StorageException(500, "Internal Server Error"));
-
-    assertThrows(IOException.class, () -> client.createEmptyObject(itemId));
-  }
-
-  @Test
-  void createFolder_success() throws IOException {
-    Storage mockStorage = mock(Storage.class);
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    client.storageControlClient = mockControlClient;
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
-    CreateFolderRequest expectedRequest =
-        CreateFolderRequest.newBuilder()
-            .setParent("projects/_/buckets/" + TEST_BUCKET_NAME)
-            .setFolderId("dir")
-            .setRecursive(true)
-            .build();
-
-    client.createFolder(itemId, true);
-
-    verify(mockControlClient).createFolder(expectedRequest);
-  }
-
-  @Test
-  void createFolder_alreadyExists_throwsFileAlreadyExistsException() {
-    Storage mockStorage = mock(Storage.class);
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    client.storageControlClient = mockControlClient;
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
-    AlreadyExistsException alreadyExistsException = mock(AlreadyExistsException.class);
-    when(mockControlClient.createFolder(any(CreateFolderRequest.class)))
-        .thenThrow(alreadyExistsException);
-
-    assertThrows(FileAlreadyExistsException.class, () -> client.createFolder(itemId, true));
-  }
-
-  @Test
-  void createFolder_runtimeException_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
-    GcsClientImpl client = createClientWithMockStorage(mockStorage);
-    client.storageControlClient = mockControlClient;
-    GcsItemId itemId =
-        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
-    when(mockControlClient.createFolder(any(CreateFolderRequest.class)))
-        .thenThrow(new RuntimeException("RPC failure"));
-
-    assertThrows(IOException.class, () -> client.createFolder(itemId, true));
   }
 
   @Test

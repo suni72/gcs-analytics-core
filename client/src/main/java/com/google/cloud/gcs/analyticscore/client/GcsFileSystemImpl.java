@@ -15,7 +15,7 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
-import static com.google.cloud.gcs.analyticscore.client.GcsClient.PATH_DELIMITER;
+import static com.google.cloud.gcs.analyticscore.client.UriUtil.PATH_DELIMITER;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
@@ -273,7 +273,8 @@ public class GcsFileSystemImpl implements GcsFileSystem {
           GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build());
     }
 
-    for (GcsItemInfo itemInfo : gcsClient.getGcsObjectInfos(fileIds.build())) {
+    List<GcsItemInfo> itemInfos = gcsClient.getGcsObjectInfos(fileIds.build());
+    for (GcsItemInfo itemInfo : itemInfos) {
       if (itemInfo != null) {
         throw new FileAlreadyExistsException(
             String.format(
@@ -283,12 +284,27 @@ public class GcsFileSystemImpl implements GcsFileSystem {
     }
   }
 
+  /**
+   * For objects whose name looks like a path (e.g. {@code "a/b/c"} or {@code "a/b/c/"}), returns
+   * all parent/intermediate directory paths.
+   *
+   * <p>For example:
+   *
+   * <ul>
+   *   <li>a/b/c => returns: ["a", "a/b"]
+   *   <li>a/b/c/ => returns: ["a", "a/b", "a/b/c"]
+   *   <li>a => returns: []
+   * </ul>
+   *
+   * @param objectName Name of an object.
+   * @return List of subdirectory like paths.
+   */
   @VisibleForTesting
   static ImmutableList<String> getDirs(String objectName) {
     if (isNullOrEmpty(objectName)) {
       return ImmutableList.of();
     }
-    String normalized = UriUtil.ensureTrailingSlash(objectName);
+    String normalized = UriUtil.toDirectoryPath(objectName);
     ImmutableList.Builder<String> dirs = ImmutableList.builder();
     int index = 0;
     while ((index = normalized.indexOf(PATH_DELIMITER, index)) >= 0) {

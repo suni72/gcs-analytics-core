@@ -224,7 +224,8 @@ class GcsClientImpl implements GcsClient {
 
     GcsItemInfo[] results = new GcsItemInfo[itemIds.size()];
     Set<IOException> innerExceptions = ConcurrentHashMap.newKeySet();
-    BatchExecutor executor = new BatchExecutor(clientOptions.getBatchThreads());
+    int numThreads = Math.min(itemIds.size(), clientOptions.getBatchThreads());
+    BatchExecutor executor = new BatchExecutor(numThreads);
 
     try {
       for (int i = 0; i < itemIds.size(); i++) {

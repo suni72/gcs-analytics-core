@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,22 +26,24 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class BatchExecutorTest {
+class BatchExecutorTest {
 
   private BatchExecutor batchExecutor;
 
   @BeforeEach
-  public void setUp() {
+  void setUp() {
     batchExecutor = new BatchExecutor(10);
   }
 
   @Test
-  public void queue_withDirectExecutor_executesSynchronouslyAndIsAlwaysIdle() throws Exception {
+  void queue_withDirectExecutor_executesSynchronouslyAndIsAlwaysIdle() throws Exception {
     BatchExecutor executor = new BatchExecutor(0);
     List<Boolean> results = new ArrayList<>();
 
@@ -53,7 +55,7 @@ public class BatchExecutorTest {
   }
 
   @Test
-  public void queue_executesMultipleTasksConcurrently() throws Exception {
+  void queue_executesMultipleTasksConcurrently() throws Exception {
     List<Integer> results = new CopyOnWriteArrayList<>();
 
     for (int i = 0; i < 10; i++) {
@@ -66,7 +68,7 @@ public class BatchExecutorTest {
   }
 
   @Test
-  public void queue_taskThrowsException_callsOnFailureWhenCallbackProvided() throws Exception {
+  void queue_taskThrowsException_callsOnFailureWhenCallbackProvided() throws Exception {
     SettableFuture<Throwable> failure = SettableFuture.create();
 
     batchExecutor.queue(
@@ -81,7 +83,7 @@ public class BatchExecutorTest {
   }
 
   @Test
-  public void queue_taskThrowsException_propagateOnShutdownWhenCallbackIsNull() {
+  void queue_taskThrowsException_propagateOnShutdownWhenCallbackIsNull() {
     batchExecutor.queue(
         () -> {
           throw new IOException("simulated failure");
@@ -94,7 +96,7 @@ public class BatchExecutorTest {
   }
 
   @Test
-  public void queue_taskThrowsRuntimeException_wrapsInIOExceptionOnShutdown() {
+  void queue_taskThrowsRuntimeException_wrapsInIOExceptionOnShutdown() {
     batchExecutor.queue(
         () -> {
           throw new RuntimeException("runtime error");
@@ -109,7 +111,7 @@ public class BatchExecutorTest {
   }
 
   @Test
-  public void queue_afterShutdown_throwsIllegalStateException() throws Exception {
+  void queue_afterShutdown_throwsIllegalStateException() throws Exception {
     batchExecutor.shutdown();
 
     IllegalStateException exception =
@@ -121,7 +123,7 @@ public class BatchExecutorTest {
   }
 
   @Test
-  public void isIdle_forThreadPoolExecutor_returnsCorrectState() throws Exception {
+  void isIdle_forThreadPoolExecutor_returnsCorrectState() throws Exception {
     SettableFuture<Void> taskStarted = SettableFuture.create();
     SettableFuture<Void> taskShouldFinish = SettableFuture.create();
 
@@ -142,6 +144,35 @@ public class BatchExecutorTest {
     batchExecutor.shutdown();
 
     assertThat(batchExecutor.isIdle()).isTrue();
+  }
+
+  @Test
+  void queue_whenQueueSaturated_executesOnCallerThread() throws Exception {
+    // Queue capacity = 1 thread * 20 tasks can be queued per thread = 20.
+    BatchExecutor executor = new BatchExecutor(1);
+    CountDownLatch taskBlocker = new CountDownLatch(1);
+    AtomicReference<Thread> saturatedTaskThread = new AtomicReference<>();
+
+    for (int i = 0; i < 21; i++) {
+      executor.queue(
+          () -> {
+            taskBlocker.await();
+            return null;
+          },
+          null);
+    }
+
+    executor.queue(
+        () -> {
+          saturatedTaskThread.set(Thread.currentThread());
+          return null;
+        },
+        null);
+
+    assertThat(saturatedTaskThread.get()).isEqualTo(Thread.currentThread());
+
+    taskBlocker.countDown();
+    executor.shutdown();
   }
 
   private static <T> FutureCallback<T> recordCallback(
