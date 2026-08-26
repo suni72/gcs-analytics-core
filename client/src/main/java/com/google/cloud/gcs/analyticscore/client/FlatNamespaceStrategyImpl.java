@@ -33,7 +33,7 @@ final class FlatNamespaceStrategyImpl implements NamespaceStrategy {
   public void createDirectory(GcsItemId id) throws IOException {
     checkNotNull(id, "id must not be null");
     checkArgument(id.isGcsObject(), "Expected a directory object itemId but got: %s", id);
-    String objectName = UriUtil.ensureTrailingSlash(id.getObjectName().orElse(""));
+    String objectName = UriUtil.toDirectoryPath(id.getObjectName().orElse(""));
     GcsItemId dirItemId =
         GcsItemId.builder().setBucketName(id.getBucketName()).setObjectName(objectName).build();
     try {
