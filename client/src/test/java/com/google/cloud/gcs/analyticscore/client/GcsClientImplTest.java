@@ -377,7 +377,7 @@ class GcsClientImplTest {
   }
 
   @Test
-  void getBucketProperties_hnsBucket_returnsTrue() throws IOException {
+  void getBucketProperties_hnsBucket_returnsHnsEnabled() throws IOException {
     Bucket mockBucket = mockBucketWithHns(true);
     doReturn(mockBucket).when(mockStorage).get(eq(TEST_HNS_BUCKET), any(BucketGetOption.class));
 
@@ -388,18 +388,32 @@ class GcsClientImplTest {
   }
 
   @Test
-  void getBucketProperties_flatBucket_returnsFalse() throws IOException {
+  void getBucketProperties_flatBucket_returnsDisabledHnsAndRapid() throws IOException {
     Bucket mockBucket = mockBucketWithHns(false);
+    when(mockBucket.getStorageClass()).thenReturn(StorageClass.STANDARD);
     doReturn(mockBucket).when(mockStorage).get(eq(TEST_FLAT_BUCKET), any(BucketGetOption.class));
 
     BucketProperties bucketProperties = clientWithMock.getBucketProperties(TEST_FLAT_BUCKET);
 
     assertThat(bucketProperties.isHnsEnabled()).isFalse();
+    assertThat(bucketProperties.isRapid()).isFalse();
     assertThat(clientWithMock.isHnsBucket(TEST_FLAT_BUCKET)).isFalse();
   }
 
   @Test
-  void getBucketProperties_missingHnsProperty_returnsFalse() throws IOException {
+  void getBucketProperties_rapidBucket_returnsRapidEnabled() throws IOException {
+    Bucket mockBucket = mockBucketWithHns(true);
+    when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
+    doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET), any(BucketGetOption.class));
+
+    BucketProperties bucketProperties = clientWithMock.getBucketProperties(TEST_BUCKET);
+
+    assertThat(bucketProperties.isHnsEnabled()).isTrue();
+    assertThat(bucketProperties.isRapid()).isTrue();
+  }
+
+  @Test
+  void getBucketProperties_missingHnsProperty_returnsDisabledHns() throws IOException {
     Bucket mockBucket = mockBucketWithHns(null);
     doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET), any(BucketGetOption.class));
 
@@ -409,16 +423,17 @@ class GcsClientImplTest {
   }
 
   @Test
-  void getBucketProperties_bucketNotFound_returnsDisabledHns() throws Exception {
+  void getBucketProperties_bucketNotFound_returnsDisabledHnsAndRapid() throws Exception {
     doReturn(null).when(mockStorage).get(eq(TEST_NON_EXISTENT_BUCKET), any(BucketGetOption.class));
 
     BucketProperties properties = clientWithMock.getBucketProperties(TEST_NON_EXISTENT_BUCKET);
 
     assertThat(properties.isHnsEnabled()).isFalse();
+    assertThat(properties.isRapid()).isFalse();
   }
 
   @Test
-  void getBucketProperties_forbiddenAccess_returnsDisabledHns() throws Exception {
+  void getBucketProperties_forbiddenAccess_returnsDisabledHnsAndRapid() throws Exception {
     doThrow(new StorageException(403, "Forbidden"))
         .when(mockStorage)
         .get(eq(TEST_FORBIDDEN_BUCKET), any(BucketGetOption.class));
@@ -426,6 +441,7 @@ class GcsClientImplTest {
     BucketProperties properties = clientWithMock.getBucketProperties(TEST_FORBIDDEN_BUCKET);
 
     assertThat(properties.isHnsEnabled()).isFalse();
+    assertThat(properties.isRapid()).isFalse();
   }
 
   @Test
@@ -1271,7 +1287,7 @@ class GcsClientImplTest {
     AppendableUploadWriteableByteChannel mockChannel =
         mock(AppendableUploadWriteableByteChannel.class);
     when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
-    when(mockStorage.get(TEST_BUCKET_NAME)).thenReturn(mockBucket);
+    doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET_NAME), any(BucketGetOption.class));
     when(mockStorage.blobAppendableUpload(
             any(BlobInfo.class),
             any(BlobAppendableUploadConfig.class),
@@ -1341,7 +1357,7 @@ class GcsClientImplTest {
   @Test
   void createEmptyObject_rapidStorageClass_throwsExceptionOnUploadError() throws IOException {
     when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
-    when(mockStorage.get(TEST_BUCKET_NAME)).thenReturn(mockBucket);
+    doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET_NAME), any(BucketGetOption.class));
     BlobAppendableUpload mockUpload = mock(BlobAppendableUpload.class);
     when(mockStorage.blobAppendableUpload(
             any(BlobInfo.class),
@@ -1359,32 +1375,6 @@ class GcsClientImplTest {
 
     assertThat(e1.getCause()).isEqualTo(storageEx);
     assertThat(e2).isEqualTo(ioEx);
-  }
-
-  @Test
-  void isRapidBucket_returnsTrueWhenStorageClassIsRapid() throws IOException {
-    when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
-    when(mockStorage.get(TEST_BUCKET_NAME)).thenReturn(mockBucket);
-
-    assertThat(clientWithMock.isRapidBucket(TEST_BUCKET_NAME)).isTrue();
-  }
-
-  @Test
-  void isRapidBucket_returnsFalseWhenStorageClassIsNotRapid() throws IOException {
-    when(mockBucket.getStorageClass()).thenReturn(StorageClass.STANDARD);
-    when(mockStorage.get(TEST_BUCKET_NAME)).thenReturn(mockBucket);
-
-    assertThat(clientWithMock.isRapidBucket(TEST_BUCKET_NAME)).isFalse();
-  }
-
-  @Test
-  void isRapidBucket_returnsFalseWhenStorageClassIsNull() {
-    when(mockBucket.getStorageClass()).thenReturn(null);
-    when(mockStorage.get(TEST_BUCKET_NAME)).thenReturn(mockBucket);
-
-    boolean isRapid = clientWithMock.isRapidBucket(TEST_BUCKET_NAME);
-
-    assertThat(isRapid).isFalse();
   }
 
   @Test
@@ -1608,7 +1598,7 @@ class GcsClientImplTest {
     NotFoundException notFoundException = mock(NotFoundException.class);
     when(mockControlClient.getFolder(any(GetFolderRequest.class))).thenThrow(notFoundException);
 
-    GcsItemInfo itemInfo = clientWithMockControl.getFolderInfo(folderItemId);
+    GcsItemInfo itemInfo = clientWithMock.getFolderInfo(folderItemId);
 
     assertNotFound(itemInfo, folderItemId);
   }

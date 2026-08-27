@@ -70,8 +70,6 @@ public interface GcsClient {
 
   boolean isHnsBucket(String bucketName) throws IOException;
 
-  boolean isRapidBucket(String bucketName) throws IOException;
-
   /** Close the client. */
   void close();
 }

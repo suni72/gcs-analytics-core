@@ -33,7 +33,6 @@ import com.google.cloud.storage.BlobAppendableUploadConfig;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.BlobWriteSession;
-import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.BucketInfo.HierarchicalNamespace;
 import com.google.cloud.storage.Storage;
@@ -374,20 +373,26 @@ class GcsClientImpl implements GcsClient {
       BucketInfo bucketInfo =
           storage.get(
               bucketName,
-              Storage.BucketGetOption.fields(Storage.BucketField.HIERARCHICAL_NAMESPACE));
+              Storage.BucketGetOption.fields(
+                  Storage.BucketField.HIERARCHICAL_NAMESPACE, Storage.BucketField.STORAGE_CLASS));
       if (bucketInfo == null) {
-        LOG.warn("Bucket {} not found, HNS API will be disabled", bucketName);
-        return BucketProperties.create(false);
+        LOG.warn("Bucket {} not found, HNS and RAPID features will be disabled", bucketName);
+        return BucketProperties.create(false, false);
       }
       boolean hnsEnabled =
           Optional.ofNullable(bucketInfo.getHierarchicalNamespace())
               .map(HierarchicalNamespace::getEnabled)
               .orElse(false);
-      return BucketProperties.create(hnsEnabled);
+      boolean isRapid =
+          bucketInfo.getStorageClass() != null
+              && RAPID_STORAGE_CLASS.equalsIgnoreCase(bucketInfo.getStorageClass().toString());
+      return BucketProperties.create(hnsEnabled, isRapid);
     } catch (StorageException storageException) {
       if (storageException.getCode() == 403) {
-        LOG.warn("Access to bucket {} is forbidden (403), HNS API will be disabled", bucketName);
-        return BucketProperties.create(false);
+        LOG.warn(
+            "Access to bucket {} is forbidden (403), HNS and RAPID features will be disabled",
+            bucketName);
+        return BucketProperties.create(false, false);
       }
       throw new IOException("Unable to access bucket: " + bucketName, storageException);
     }
@@ -500,12 +505,8 @@ class GcsClientImpl implements GcsClient {
     }
   }
 
-  @Override
-  public boolean isRapidBucket(String bucketName) {
-    Bucket bucket = storage.get(bucketName);
-    return bucket != null
-        && bucket.getStorageClass() != null
-        && RAPID_STORAGE_CLASS.equalsIgnoreCase(bucket.getStorageClass().toString());
+  private boolean isRapidBucket(String bucketName) throws IOException {
+    return getBucketProperties(bucketName).isRapid();
   }
 
   private void createAppendableEmptyObject(GcsItemId itemId, GcsWriteOptions options)
@@ -597,6 +598,10 @@ class GcsClientImpl implements GcsClient {
    * Evaluates a condition using capped exponential backoff with randomization jitter until it
    * evaluates to true or timeout occurs.
    *
+   * <p>Reference implementation adapted from hadoop-connectors: {@code
+   * com.google.cloud.hadoop.gcsio.GoogleCloudStorageClientImpl#canIgnoreExceptionForEmptyObject}
+   * and {@code com.google.api.client.util.ExponentialBackOff}.
+   *
    * @param predicate The condition to evaluate on each iteration. May throw IOException.
    * @param maxElapsedTimeMillis Maximum wall-clock time to wait in milliseconds.
    * @param initialIntervalMillis Initial sleep interval in milliseconds.
@@ -628,7 +633,8 @@ class GcsClientImpl implements GcsClient {
         break;
       }
 
-      // Inject randomization jitter to prevent thundering herd retry synchronization
+      // Inject randomization jitter to prevent thundering herd retry synchronization.
+      // Reference: com.google.api.client.util.ExponentialBackOff
       double jitter =
           1.0 + (ThreadLocalRandom.current().nextDouble() * 2.0 - 1.0) * randomizationFactor;
       long randomizedSleep = Math.max(1L, (long) (sleepInterval * jitter));
