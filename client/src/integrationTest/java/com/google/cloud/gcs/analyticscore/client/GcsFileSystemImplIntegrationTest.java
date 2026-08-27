@@ -29,6 +29,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -40,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 // TODO: Setup buckets and test data as part of setup on place of relying on existing bucket.
 class GcsFileSystemImplIntegrationTest {
+
+    private static final Logger LOG = LoggerFactory.getLogger(GcsFileSystemImplIntegrationTest.class);
 
     private Storage storage;
     private List<BlobId> blobsToDelete;
@@ -59,14 +63,14 @@ class GcsFileSystemImplIntegrationTest {
                 try {
                     storage.delete(blobId);
                 } catch (Exception e) {
-                    // Ignore cleanup errors
+                    LOG.debug("Failed to delete blob {} during cleanup", blobId, e);
                 }
             }
             for (String bucketName : bucketsToDelete) {
                 try {
                     storage.delete(bucketName);
                 } catch (Exception e) {
-                    // Ignore cleanup errors
+                    LOG.debug("Failed to delete bucket {} during cleanup", bucketName, e);
                 }
             }
         }

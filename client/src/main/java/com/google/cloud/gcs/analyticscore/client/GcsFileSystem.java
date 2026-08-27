@@ -89,6 +89,22 @@ public interface GcsFileSystem extends AutoCloseable {
    * @param path the GCS URI of the directory to create
    * @throws IOException if an I/O error occurs
    */
+  void mkdir(URI path) throws IOException;
+
+  /**
+   * Creates a directory for the given {@link GcsItemId}.
+   *
+   * @param itemId the GCS item identifier of the directory to create
+   * @throws IOException if an I/O error occurs
+   */
+  void mkdir(GcsItemId itemId) throws IOException;
+
+  /**
+   * Creates a directory at the specified URI path.
+   *
+   * @param path the GCS URI of the directory to create
+   * @throws IOException if an I/O error occurs
+   */
   void mkdirs(URI path) throws IOException;
 
   /**

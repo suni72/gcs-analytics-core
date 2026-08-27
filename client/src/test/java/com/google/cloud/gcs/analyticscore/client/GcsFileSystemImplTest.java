@@ -819,26 +819,50 @@ class GcsFileSystemImplTest {
   }
 
   @Test
-  void mkdirs_flatBucket_createsEmptyObjectWithTrailingSlash() throws IOException {
-    URI dirUri = URI.create("gs://test-bucket/dir/subdir");
-    when(mockClient.isHnsBucket("test-bucket")).thenReturn(false);
+  void mkdirs_flatBucket_withoutTrailingSlash_createsEmptyObject() throws IOException {
+    URI dirUri = URI.create("gs://" + TEST_BUCKET + "/dir/subdir");
+    when(mockClient.isHnsBucket(TEST_BUCKET)).thenReturn(false);
 
     gcsFileSystem.mkdirs(dirUri);
 
     GcsItemId expectedItemId =
-        GcsItemId.builder().setBucketName("test-bucket").setObjectName("dir/subdir/").build();
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
     verify(mockClient).createEmptyObject(expectedItemId);
   }
 
   @Test
-  void mkdirs_hnsBucket_createsFolderRecursiveWithoutTrailingSlash() throws IOException {
-    URI dirUri = URI.create("gs://test-bucket/dir/subdir/");
-    when(mockClient.isHnsBucket("test-bucket")).thenReturn(true);
+  void mkdirs_flatBucket_withTrailingSlash_createsEmptyObject() throws IOException {
+    URI dirUri = URI.create("gs://" + TEST_BUCKET + "/dir/subdir/");
+    when(mockClient.isHnsBucket(TEST_BUCKET)).thenReturn(false);
 
     gcsFileSystem.mkdirs(dirUri);
 
     GcsItemId expectedItemId =
-        GcsItemId.builder().setBucketName("test-bucket").setObjectName("dir/subdir").build();
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
+    verify(mockClient).createEmptyObject(expectedItemId);
+  }
+
+  @Test
+  void mkdirs_hnsBucket_withTrailingSlash_createsFolder() throws IOException {
+    URI dirUri = URI.create("gs://" + TEST_BUCKET + "/dir/subdir/");
+    when(mockClient.isHnsBucket(TEST_BUCKET)).thenReturn(true);
+
+    gcsFileSystem.mkdirs(dirUri);
+
+    GcsItemId expectedItemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("dir/subdir").build();
+    verify(mockClient).createFolder(expectedItemId, true);
+  }
+
+  @Test
+  void mkdirs_hnsBucket_withoutTrailingSlash_createsFolder() throws IOException {
+    URI dirUri = URI.create("gs://" + TEST_BUCKET + "/dir/subdir");
+    when(mockClient.isHnsBucket(TEST_BUCKET)).thenReturn(true);
+
+    gcsFileSystem.mkdirs(dirUri);
+
+    GcsItemId expectedItemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("dir/subdir").build();
     verify(mockClient).createFolder(expectedItemId, true);
   }
 
@@ -868,9 +892,10 @@ class GcsFileSystemImplTest {
             .build();
     URI dirUri = URI.create("gs://test-bucket/dir/subdir");
 
-    try (GcsFileSystemImpl customFs = new GcsFileSystemImpl(mockClient, options)) {
+    try (GcsFileSystemImpl customFs = spy(new GcsFileSystemImpl(mockClient, options))) {
       customFs.mkdirs(dirUri);
 
+      verify(customFs, never()).checkNoFilesConflictingWithDirs(any());
       verify(mockClient, never()).getGcsObjectInfos(any());
       GcsItemId expectedItemId =
           GcsItemId.builder().setBucketName("test-bucket").setObjectName("dir/subdir/").build();
@@ -879,9 +904,33 @@ class GcsFileSystemImplTest {
   }
 
   @Test
+  void mkdir_uri_createsDirectoryViaClient() throws IOException {
+    URI dirUri = URI.create("gs://" + TEST_BUCKET + "/dir/subdir");
+    when(mockClient.isHnsBucket(TEST_BUCKET)).thenReturn(false);
+
+    gcsFileSystem.mkdir(dirUri);
+
+    GcsItemId expectedItemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
+    verify(mockClient).createEmptyObject(expectedItemId);
+  }
+
+  @Test
+  void mkdir_itemId_createsDirectoryViaClient() throws IOException {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName("dir/subdir").build();
+    when(mockClient.isHnsBucket(TEST_BUCKET)).thenReturn(false);
+
+    gcsFileSystem.mkdir(itemId);
+
+    GcsItemId expectedItemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_SUBDIR).build();
+    verify(mockClient).createEmptyObject(expectedItemId);
+  }
+
+  @Test
   void mkdirs_invalidScheme_throwsIllegalArgumentException() {
     URI invalidUri = URI.create("http://test-bucket/dir");
-
     assertThrows(IllegalArgumentException.class, () -> gcsFileSystem.mkdirs(invalidUri));
   }
 

@@ -21,8 +21,13 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(HierarchicalNamespaceStrategyImpl.class);
+
   private final GcsClient gcsClient;
 
   HierarchicalNamespaceStrategyImpl(GcsClient gcsClient) {
@@ -39,7 +44,7 @@ final class HierarchicalNamespaceStrategyImpl implements NamespaceStrategy {
     try {
       gcsClient.createFolder(folderItemId, /* recursive= */ true);
     } catch (FileAlreadyExistsException e) {
-      // Folder already exists, ignore.
+      LOG.debug("Folder already exists for item: {}", folderItemId, e);
     }
   }
 }

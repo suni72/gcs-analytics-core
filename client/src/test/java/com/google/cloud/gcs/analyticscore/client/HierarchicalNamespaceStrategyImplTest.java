@@ -16,6 +16,7 @@
 
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
@@ -81,7 +82,9 @@ class HierarchicalNamespaceStrategyImplTest {
         .when(mockGcsClient)
         .createFolder(expectedItemId, true);
 
-    assertThrows(IOException.class, () -> strategy.createDirectory(itemId));
+    assertThat(assertThrows(IOException.class, () -> strategy.createDirectory(itemId)))
+        .hasMessageThat()
+        .isEqualTo("Network failure");
   }
 
   @Test

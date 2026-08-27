@@ -45,8 +45,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class GcsFileSystemImpl implements GcsFileSystem {
+
+  private static final Logger LOG = LoggerFactory.getLogger(GcsFileSystemImpl.class);
 
   /**
    * Using a 30-second keep-alive enables efficient thread reuse during intermittent spikes in
@@ -261,6 +265,18 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   }
 
   @Override
+  public void mkdir(URI path) throws IOException {
+    LOG.debug("Ignoring non-recursive mkdir. Creating parents anyways.");
+    mkdirs(path);
+  }
+
+  @Override
+  public void mkdir(GcsItemId itemId) throws IOException {
+    LOG.debug("Ignoring non-recursive mkdir. Creating parents anyways.");
+    mkdirs(itemId);
+  }
+
+  @Override
   public void mkdirs(URI path) throws IOException {
     checkNotNull(path, "path should not be null");
     mkdirs(UriUtil.getItemIdFromString(path.toString()));
@@ -277,7 +293,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
       try {
         gcsClient.createBucket(itemId.getBucketName());
       } catch (FileAlreadyExistsException e) {
-        // Bucket already exists, ignore.
+        LOG.debug("Bucket {} already exists.", itemId.getBucketName(), e);
       }
       return;
     }
