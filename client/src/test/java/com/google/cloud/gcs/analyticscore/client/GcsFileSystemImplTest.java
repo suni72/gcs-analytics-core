@@ -49,6 +49,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -736,8 +737,8 @@ class GcsFileSystemImplTest {
     when(mockClient.getGcsObjectInfos(any()))
         .thenAnswer(
             invocation -> {
-              List<?> list = invocation.getArgument(0);
-              return Collections.nCopies(list.size(), null);
+              List<GcsItemId> list = invocation.getArgument(0);
+              return list.stream().map(GcsItemInfo::createNotFound).collect(Collectors.toList());
             });
 
     assertDoesNotThrow(
@@ -757,7 +758,8 @@ class GcsFileSystemImplTest {
             .setSize(100L)
             .setContentGeneration(1L)
             .build();
-    when(mockClient.getGcsObjectInfos(any())).thenReturn(asList(mockFileInfo, null));
+    when(mockClient.getGcsObjectInfos(any()))
+        .thenReturn(asList(mockFileInfo, GcsItemInfo.createNotFound(dirId)));
 
     assertThrows(
         FileAlreadyExistsException.class,

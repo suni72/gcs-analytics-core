@@ -218,7 +218,7 @@ class GcsClientImpl implements GcsClient {
       return Collections.emptyList();
     }
     if (itemIds.size() == 1) {
-      GcsItemInfo info = getGcsObjectInfoOrNull(itemIds.get(0));
+      GcsItemInfo info = getGcsObjectInfo(itemIds.get(0));
       return Collections.singletonList(info);
     }
 
@@ -232,7 +232,7 @@ class GcsClientImpl implements GcsClient {
         final int index = i;
         final GcsItemId itemId = itemIds.get(i);
         executor.queue(
-            () -> getGcsObjectInfoOrNull(itemId),
+            () -> getGcsObjectInfo(itemId),
             new FutureCallback<GcsItemInfo>() {
               @Override
               public void onSuccess(GcsItemInfo result) {
@@ -255,14 +255,6 @@ class GcsClientImpl implements GcsClient {
     }
 
     return Arrays.asList(results);
-  }
-
-  private GcsItemInfo getGcsObjectInfoOrNull(GcsItemId itemId) throws IOException {
-    try {
-      return getGcsObjectInfo(itemId);
-    } catch (FileNotFoundException e) {
-      return null;
-    }
   }
 
   @Override

@@ -275,7 +275,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
     List<GcsItemInfo> itemInfos = gcsClient.getGcsObjectInfos(fileIds.build());
     for (GcsItemInfo itemInfo : itemInfos) {
-      if (itemInfo != null) {
+      if (itemInfo.exists()) {
         throw new FileAlreadyExistsException(
             String.format(
                 "Cannot create directory '%s' because of existing file '%s'",

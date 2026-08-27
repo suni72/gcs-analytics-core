@@ -246,11 +246,12 @@ class GcsClientImplTest {
       int batchThreads) throws IOException {
     GcsClientOptions clientOptions =
         GcsClientOptions.builder().setBatchThreads(batchThreads).build();
+    Storage localMockStorage = storage;
     GcsClient client =
         new GcsClientImpl(clientOptions, executorServiceSupplier, telemetry) {
           @Override
           protected Storage createStorage(Optional<Credentials> credentials) {
-            return storage;
+            return localMockStorage;
           }
         };
     GcsItemId existingId1 =
@@ -277,12 +278,12 @@ class GcsClientImplTest {
     assertThat(result).hasSize(3);
     assertThat(result.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
     assertThat(result.get(1).getItemId().getObjectName()).hasValue("object2");
-    assertThat(result.get(2)).isNull();
+    assertNotFound(result.get(2), missingId);
   }
 
   @Test
   void getGcsObjectInfos_underlyingClientFails_throwsIOException() {
-    when(mockStorage.get(any(BlobId.class)))
+    when(mockStorage.get(any(BlobId.class), any(Storage.BlobGetOption[].class)))
         .thenThrow(new StorageException(500, "Internal Server Error"));
     GcsItemId id1 =
         GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object1").build();
@@ -315,7 +316,8 @@ class GcsClientImplTest {
 
     assertThat(existingResult).hasSize(1);
     assertThat(existingResult.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
-    assertThat(missingResult).containsExactly((GcsItemInfo) null);
+    assertThat(missingResult).hasSize(1);
+    assertNotFound(missingResult.get(0), missingId);
   }
 
   @Test
