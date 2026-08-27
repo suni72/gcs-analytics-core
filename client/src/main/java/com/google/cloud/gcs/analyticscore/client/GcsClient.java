@@ -56,6 +56,18 @@ public interface GcsClient {
    */
   List<GcsItemInfo> listFirstObjectWithPrefix(GcsItemId prefixId) throws IOException;
 
+  /** Creates a GCS bucket. */
+  void createBucket(String bucketName) throws IOException;
+
+  /** Creates a 0-byte empty object (used for flat directory markers). */
+  void createEmptyObject(GcsItemId itemId) throws IOException;
+
+  /** Creates a 0-byte empty object with write options. */
+  void createEmptyObject(GcsItemId itemId, GcsWriteOptions options) throws IOException;
+
+  /** Creates a folder in HNS buckets. */
+  void createFolder(GcsItemId itemId, boolean recursive) throws IOException;
+
   boolean isHnsBucket(String bucketName) throws IOException;
 
   /** Close the client. */

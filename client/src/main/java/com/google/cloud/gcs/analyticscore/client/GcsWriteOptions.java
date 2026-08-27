@@ -43,12 +43,16 @@ public abstract class GcsWriteOptions {
   private static final String KMS_KEY_NAME_KEY = "kms-key-name";
   private static final String USER_PROJECT_KEY = "user-project";
   private static final String ENCRYPTION_KEY_KEY = "encryption-key";
+  private static final String ENSURE_EMPTY_OBJECTS_METADATA_MATCH_KEY =
+      "channel.write.ensure-empty-objects-metadata-match";
 
   public abstract boolean isChecksumValidationEnabled();
 
   public abstract boolean isDisableGzipContent();
 
   public abstract boolean isOverwriteExisting();
+
+  public abstract boolean isEnsureEmptyObjectsMetadataMatch();
 
   // Metadata/Auth Configurations
   public abstract Optional<String> getKmsKeyName();
@@ -82,6 +86,9 @@ public abstract class GcsWriteOptions {
     Optional.ofNullable(analyticsCoreOptions.get(prefix + OVERWRITE_EXISTING_KEY))
         .map(Boolean::parseBoolean)
         .ifPresent(optionsBuilder::setOverwriteExisting);
+    Optional.ofNullable(analyticsCoreOptions.get(prefix + ENSURE_EMPTY_OBJECTS_METADATA_MATCH_KEY))
+        .map(Boolean::parseBoolean)
+        .ifPresent(optionsBuilder::setEnsureEmptyObjectsMetadataMatch);
     Optional.ofNullable(analyticsCoreOptions.get(prefix + KMS_KEY_NAME_KEY))
         .ifPresent(optionsBuilder::setKmsKeyName);
     Optional.ofNullable(analyticsCoreOptions.get(prefix + USER_PROJECT_KEY))
@@ -96,6 +103,7 @@ public abstract class GcsWriteOptions {
         .setChecksumValidationEnabled(false)
         .setDisableGzipContent(true)
         .setOverwriteExisting(true)
+        .setEnsureEmptyObjectsMetadataMatch(true)
         .setContentType("application/octet-stream")
         .setMetadata(ImmutableMap.of());
   }
@@ -109,6 +117,9 @@ public abstract class GcsWriteOptions {
     public abstract Builder setDisableGzipContent(boolean disable);
 
     public abstract Builder setOverwriteExisting(boolean overwrite);
+
+    public abstract Builder setEnsureEmptyObjectsMetadataMatch(
+        boolean ensureEmptyObjectsMetadataMatch);
 
     public abstract Builder setKmsKeyName(String key);
 

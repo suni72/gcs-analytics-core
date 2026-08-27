@@ -158,4 +158,48 @@ class GcsItemInfoTest {
     assertThat(decodedNullVal.keySet()).containsExactly("key");
     assertThat(decodedNullVal.get("key")).isEmpty();
   }
+
+  @Test
+  void isMetadataEqual_sameInstanceOrEqualContents_returnsTrue() {
+    Map<String, byte[]> map1 = ImmutableMap.of("key1", new byte[] {1, 2}, "key2", new byte[] {3});
+    Map<String, byte[]> map2 = ImmutableMap.of("key1", new byte[] {1, 2}, "key2", new byte[] {3});
+
+    assertThat(GcsItemInfo.isMetadataEqual(map1, map1)).isTrue();
+    assertThat(GcsItemInfo.isMetadataEqual(map1, map2)).isTrue();
+  }
+
+  @Test
+  void isMetadataEqual_oneNullOrDifferentSizes_returnsFalse() {
+    Map<String, byte[]> map1 = ImmutableMap.of("key1", new byte[] {1});
+    Map<String, byte[]> map2 = ImmutableMap.of("key1", new byte[] {1}, "key2", new byte[] {2});
+
+    assertThat(GcsItemInfo.isMetadataEqual(map1, null)).isFalse();
+    assertThat(GcsItemInfo.isMetadataEqual(map1, map2)).isFalse();
+  }
+
+  @Test
+  void isMetadataEqual_differentValuesOrMissingKeys_returnsFalse() {
+    Map<String, byte[]> map1 = ImmutableMap.of("key1", new byte[] {1, 2});
+    Map<String, byte[]> map2 = ImmutableMap.of("key1", new byte[] {9, 9});
+    Map<String, byte[]> map3 = ImmutableMap.of("key2", new byte[] {1, 2});
+    Map<String, byte[]> nullVal1 = Collections.singletonMap("key1", null);
+    Map<String, byte[]> nullVal2 = Collections.singletonMap("key2", null);
+
+    assertThat(GcsItemInfo.isMetadataEqual(map1, map2)).isFalse();
+    assertThat(GcsItemInfo.isMetadataEqual(map1, map3)).isFalse();
+    assertThat(GcsItemInfo.isMetadataEqual(nullVal1, nullVal2)).isFalse();
+  }
+
+  @Test
+  void isMetadataEqual_emptyMaps_returnsTrue() {
+    assertThat(GcsItemInfo.isMetadataEqual(ImmutableMap.of(), ImmutableMap.of())).isTrue();
+  }
+
+  @Test
+  void isMetadataEqual_differentInsertionOrder_returnsTrue() {
+    Map<String, byte[]> map1 = ImmutableMap.of("keyA", new byte[] {1}, "keyB", new byte[] {2});
+    Map<String, byte[]> map2 = ImmutableMap.of("keyB", new byte[] {2}, "keyA", new byte[] {1});
+
+    assertThat(GcsItemInfo.isMetadataEqual(map1, map2)).isTrue();
+  }
 }

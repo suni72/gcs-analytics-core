@@ -24,16 +24,21 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.paging.Page;
+import com.google.api.gax.rpc.AlreadyExistsException;
 import com.google.api.gax.rpc.NotFoundException;
 import com.google.auth.Credentials;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.gcs.analyticscore.common.telemetry.Telemetry;
 import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobAppendableUpload;
+import com.google.cloud.storage.BlobAppendableUpload.AppendableUploadWriteableByteChannel;
+import com.google.cloud.storage.BlobAppendableUploadConfig;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.BlobReadSession;
@@ -41,6 +46,7 @@ import com.google.cloud.storage.BlobWriteSession;
 import com.google.cloud.storage.BlobWriteSessionConfig;
 import com.google.cloud.storage.BlobWriteSessionConfigs;
 import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.BucketInfo.HierarchicalNamespace;
 import com.google.cloud.storage.BufferToDiskThenUpload;
 import com.google.cloud.storage.DefaultBlobWriteSessionConfig;
@@ -49,13 +55,16 @@ import com.google.cloud.storage.HttpStorageOptions;
 import com.google.cloud.storage.ParallelCompositeUploadBlobWriteSessionConfig;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BucketGetOption;
+import com.google.cloud.storage.StorageClass;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.Timestamp;
+import com.google.storage.control.v2.CreateFolderRequest;
 import com.google.storage.control.v2.Folder;
 import com.google.storage.control.v2.GetFolderRequest;
 import com.google.storage.control.v2.StorageControlClient;
@@ -112,11 +121,18 @@ class GcsClientImplTest {
   private static final String TEST_OBJECT_NAME = "test-object-name";
   private static final String BLOB_WRITE_SESSION_CONFIG_FIELD = "blobWriteSessionConfig";
   private static final int MB = 1024 * 1024;
+  private static final String RAPID_STORAGE_CLASS = "RAPID";
+  private static final String TEST_ENCRYPTION_KEY = "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=";
+  private static final String TEST_DIRECTORY_CONTENT_TYPE = "application/x-directory";
+  private static final String TEST_CONTENT_ENCODING = "identity";
+  private static final long TEST_CONTENT_GENERATION = 123L;
 
   private static final GcsClientOptions TEST_GCS_CLIENT_OPTIONS =
       GcsClientOptions.builder().setProjectId(TEST_PROJECT).build();
   private static final GcsItemId TEST_ITEM_ID =
       GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_OBJECT).build();
+  private static final GcsItemId TEST_DIR_ITEM_ID =
+      GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName(TEST_DIR).build();
   private static final BlobInfo TEST_BLOB_INFO =
       BlobInfo.newBuilder(BlobId.of(TEST_BUCKET, TEST_OBJECT))
           .setContentType("application/octet-stream")
@@ -128,11 +144,21 @@ class GcsClientImplTest {
       Suppliers.memoize(() -> Executors.newFixedThreadPool(30));
   private final Telemetry telemetry = new Telemetry(ImmutableList.of());
 
-  private GcsClient gcsClient;
+  private GcsClientImpl gcsClient;
+  private Storage mockStorage;
+  private StorageControlClient mockControlClient;
+  private Bucket mockBucket;
+  private Blob mockBlob;
+  private GcsClientImpl clientWithMock;
 
   @BeforeEach
   void setUp() throws IOException {
     gcsClient = createClientWithMockStorage(storage);
+    mockStorage = mock(Storage.class);
+    mockControlClient = mock(StorageControlClient.class);
+    mockBucket = mock(Bucket.class);
+    mockBlob = mock(Blob.class);
+    clientWithMock = createClientWithMocks(mockStorage, mockControlClient);
   }
 
   @Test
@@ -344,85 +370,89 @@ class GcsClientImplTest {
 
   @Test
   void getBucketProperties_nullBucketName_throwsNullPointerException() {
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mock(Storage.class));
     NullPointerException e =
-        assertThrows(NullPointerException.class, () -> localGcsClient.getBucketProperties(null));
+        assertThrows(NullPointerException.class, () -> clientWithMock.getBucketProperties(null));
+
     assertThat(e).hasMessageThat().isEqualTo("bucketName cannot be null");
   }
 
   @Test
-  void getBucketProperties_hnsBucket_returnsTrue() throws IOException {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
+  void getBucketProperties_hnsBucket_returnsHnsEnabled() throws IOException {
     Bucket mockBucket = mockBucketWithHns(true);
     doReturn(mockBucket).when(mockStorage).get(eq(TEST_HNS_BUCKET), any(BucketGetOption.class));
 
-    BucketProperties bucketProperties = localGcsClient.getBucketProperties(TEST_HNS_BUCKET);
+    BucketProperties bucketProperties = clientWithMock.getBucketProperties(TEST_HNS_BUCKET);
 
     assertThat(bucketProperties.isHnsEnabled()).isTrue();
-    assertThat(localGcsClient.isHnsBucket(TEST_HNS_BUCKET)).isTrue();
+    assertThat(clientWithMock.isHnsBucket(TEST_HNS_BUCKET)).isTrue();
   }
 
   @Test
-  void getBucketProperties_flatBucket_returnsFalse() throws IOException {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
+  void getBucketProperties_flatBucket_returnsDisabledHnsAndRapid() throws IOException {
     Bucket mockBucket = mockBucketWithHns(false);
+    when(mockBucket.getStorageClass()).thenReturn(StorageClass.STANDARD);
     doReturn(mockBucket).when(mockStorage).get(eq(TEST_FLAT_BUCKET), any(BucketGetOption.class));
 
-    BucketProperties bucketProperties = localGcsClient.getBucketProperties(TEST_FLAT_BUCKET);
+    BucketProperties bucketProperties = clientWithMock.getBucketProperties(TEST_FLAT_BUCKET);
 
     assertThat(bucketProperties.isHnsEnabled()).isFalse();
-    assertThat(localGcsClient.isHnsBucket(TEST_FLAT_BUCKET)).isFalse();
+    assertThat(bucketProperties.isRapid()).isFalse();
+    assertThat(clientWithMock.isHnsBucket(TEST_FLAT_BUCKET)).isFalse();
   }
 
   @Test
-  void getBucketProperties_missingHnsProperty_returnsFalse() throws IOException {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
+  void getBucketProperties_rapidBucket_returnsRapidEnabled() throws IOException {
+    Bucket mockBucket = mockBucketWithHns(true);
+    when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
+    doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET), any(BucketGetOption.class));
+
+    BucketProperties bucketProperties = clientWithMock.getBucketProperties(TEST_BUCKET);
+
+    assertThat(bucketProperties.isHnsEnabled()).isTrue();
+    assertThat(bucketProperties.isRapid()).isTrue();
+  }
+
+  @Test
+  void getBucketProperties_missingHnsProperty_returnsDisabledHns() throws IOException {
     Bucket mockBucket = mockBucketWithHns(null);
     doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET), any(BucketGetOption.class));
 
-    BucketProperties bucketProperties = localGcsClient.getBucketProperties(TEST_BUCKET);
+    BucketProperties bucketProperties = clientWithMock.getBucketProperties(TEST_BUCKET);
 
     assertThat(bucketProperties.isHnsEnabled()).isFalse();
   }
 
   @Test
-  void getBucketProperties_bucketNotFound_returnsDisabledHns() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
+  void getBucketProperties_bucketNotFound_returnsDisabledHnsAndRapid() throws Exception {
     doReturn(null).when(mockStorage).get(eq(TEST_NON_EXISTENT_BUCKET), any(BucketGetOption.class));
 
-    BucketProperties properties = localGcsClient.getBucketProperties(TEST_NON_EXISTENT_BUCKET);
+    BucketProperties properties = clientWithMock.getBucketProperties(TEST_NON_EXISTENT_BUCKET);
 
     assertThat(properties.isHnsEnabled()).isFalse();
+    assertThat(properties.isRapid()).isFalse();
   }
 
   @Test
-  void getBucketProperties_forbiddenAccess_returnsDisabledHns() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
+  void getBucketProperties_forbiddenAccess_returnsDisabledHnsAndRapid() throws Exception {
     doThrow(new StorageException(403, "Forbidden"))
         .when(mockStorage)
         .get(eq(TEST_FORBIDDEN_BUCKET), any(BucketGetOption.class));
 
-    BucketProperties properties = localGcsClient.getBucketProperties(TEST_FORBIDDEN_BUCKET);
+    BucketProperties properties = clientWithMock.getBucketProperties(TEST_FORBIDDEN_BUCKET);
 
     assertThat(properties.isHnsEnabled()).isFalse();
+    assertThat(properties.isRapid()).isFalse();
   }
 
   @Test
   void getBucketProperties_storageThrows500_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl localGcsClient = createClientWithMockStorage(mockStorage);
     doThrow(new StorageException(500, "Internal Error"))
         .when(mockStorage)
         .get(eq(TEST_ERROR_BUCKET), any(BucketGetOption.class));
 
     IOException e =
         assertThrows(
-            IOException.class, () -> localGcsClient.getBucketProperties(TEST_ERROR_BUCKET));
+            IOException.class, () -> clientWithMock.getBucketProperties(TEST_ERROR_BUCKET));
 
     assertThat(e).hasMessageThat().contains("Unable to access bucket: " + TEST_ERROR_BUCKET);
   }
@@ -431,6 +461,11 @@ class GcsClientImplTest {
     return new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
       @Override
       protected Storage createStorage(Optional<Credentials> credentials) {
+        return mockStorage;
+      }
+
+      @Override
+      protected Storage createGrpcStorage(Optional<Credentials> credentials) {
         return mockStorage;
       }
     };
@@ -450,13 +485,13 @@ class GcsClientImplTest {
 
   @Test
   void create_withLocalStorage_writesSuccessfully() throws Exception {
-    GcsClientImpl client = createClientWithMockStorage(storage);
     GcsItemId itemId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_WRITE_OBJECT).build();
     BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(TEST_BUCKET, TEST_WRITE_OBJECT)).build();
     byte[] data = "hello write world".getBytes(StandardCharsets.UTF_8);
 
-    try (WritableByteChannel channel = client.createWriteChannel(itemId, DEFAULT_WRITE_OPTIONS)) {
+    try (WritableByteChannel channel =
+        gcsClient.createWriteChannel(itemId, DEFAULT_WRITE_OPTIONS)) {
       int bytesWritten = channel.write(ByteBuffer.wrap(data));
       assertThat(bytesWritten).isEqualTo(data.length);
     }
@@ -467,8 +502,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenAccessDenied_throwsAccessDeniedException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     StorageException e403 = new StorageException(403, "Forbidden");
     when(mockStorage.blobWriteSession(eq(TEST_BLOB_INFO), any(Storage.BlobWriteOption[].class)))
         .thenThrow(e403);
@@ -480,8 +513,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenFileExists_throwsIOException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     StorageException e409 = new StorageException(409, "Conflict");
     when(mockStorage.blobWriteSession(eq(TEST_BLOB_INFO), any(Storage.BlobWriteOption[].class)))
         .thenThrow(e409);
@@ -494,8 +525,6 @@ class GcsClientImplTest {
   @Test
   void create_whenPreconditionFailedAndNoOverwrite_throwsFileAlreadyExistsException()
       throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsWriteOptions writeOptions = GcsWriteOptions.builder().setOverwriteExisting(false).build();
     StorageException e412 = new StorageException(412, "Precondition Failed");
     when(mockStorage.blobWriteSession(eq(TEST_BLOB_INFO), any(Storage.BlobWriteOption[].class)))
@@ -511,8 +540,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenGenerationMismatch_throwsIOException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsItemId itemIdWithGen =
         GcsItemId.builder()
             .setBucketName(TEST_BUCKET)
@@ -538,8 +565,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenBucketOrObjectNotFound_throwsFileNotFoundException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsItemId itemId =
         GcsItemId.builder()
             .setBucketName(TEST_NON_EXISTENT_BUCKET)
@@ -563,8 +588,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenStorageExceptionOccurs_throwsIOException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     StorageException e500 = new StorageException(500, "Internal Server Error");
     when(mockStorage.blobWriteSession(eq(TEST_BLOB_INFO), any(Storage.BlobWriteOption[].class)))
         .thenThrow(e500);
@@ -580,12 +603,10 @@ class GcsClientImplTest {
   @Test
   void create_whenOpenThrowsIOExceptionWrappingStorageException_translatesStorageException()
       throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     StorageException nestedStorageException = new StorageException(404, "Not Found");
     IOException wrappingException = new IOException(nestedStorageException);
     when(mockSession.open()).thenThrow(wrappingException);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     IOException exception =
         assertThrows(
@@ -597,11 +618,9 @@ class GcsClientImplTest {
 
   @Test
   void create_nullWriteOptions_usesDefaultWriteOptions() throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     WritableByteChannel mockChannel = mock(WritableByteChannel.class);
     when(mockSession.open()).thenReturn(mockChannel);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     WritableByteChannel returnedChannel = clientWithMock.createWriteChannel(TEST_ITEM_ID, null);
 
@@ -614,10 +633,8 @@ class GcsClientImplTest {
 
   @Test
   void create_withMetadata_base64EncodesMetadata() throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     when(mockSession.open()).thenReturn(mock(WritableByteChannel.class));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     Map<String, byte[]> customMetadata = new HashMap<>();
     customMetadata.put("key1", "value1".getBytes(StandardCharsets.UTF_8));
     customMetadata.put("key2", new byte[] {0, 1, 2, 3});
@@ -642,23 +659,19 @@ class GcsClientImplTest {
 
   @Test
   void create_withoutObjectName_throwsIllegalArgumentException() {
-    GcsClientImpl client =
-        new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry);
     GcsItemId itemIdWithoutName = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
 
     IllegalArgumentException e =
         assertThrows(
             IllegalArgumentException.class,
-            () -> client.createWriteChannel(itemIdWithoutName, DEFAULT_WRITE_OPTIONS));
+            () -> clientWithMock.createWriteChannel(itemIdWithoutName, DEFAULT_WRITE_OPTIONS));
     assertThat(e).hasMessageThat().contains("Object name must be present");
   }
 
   @Test
   void create_allWriteOptionsEnabled_generatesCorrectBlobWriteOptions() throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     when(mockSession.open()).thenReturn(mock(WritableByteChannel.class));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsWriteOptions allOptions =
         GcsWriteOptions.builder()
             .setChecksumValidationEnabled(true)
@@ -680,10 +693,8 @@ class GcsClientImplTest {
 
   @Test
   void create_withDisableGzipContentFalse_doesNotAddDisableGzipOption() throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     when(mockSession.open()).thenReturn(mock(WritableByteChannel.class));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsWriteOptions writeOptions = GcsWriteOptions.builder().setDisableGzipContent(false).build();
 
     clientWithMock.createWriteChannel(TEST_ITEM_ID, writeOptions);
@@ -694,10 +705,8 @@ class GcsClientImplTest {
 
   @Test
   void create_withGenerationId_generatesGenerationMatchOption() throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     when(mockSession.open()).thenReturn(mock(WritableByteChannel.class));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsItemId itemIdWithGen =
         GcsItemId.builder()
             .setBucketName(TEST_BUCKET)
@@ -796,11 +805,9 @@ class GcsClientImplTest {
 
   @Test
   void create_whenOpenThrowsIOException_propagatesIOException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
     BlobWriteSession mockSession = mockBlobWriteSession(mockStorage);
     IOException ioException = new IOException("Open failed");
     when(mockSession.open()).thenThrow(ioException);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     IOException thrown =
         assertThrows(
@@ -843,8 +850,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenPreconditionFailedAndNullWriteOptions_throwsIOException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     StorageException e412 = new StorageException(412, "Precondition Failed");
     BlobInfo nullOptionsBlobInfo = BlobInfo.newBuilder(BlobId.of(TEST_BUCKET, TEST_OBJECT)).build();
     when(mockStorage.blobWriteSession(
@@ -860,8 +865,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenPreconditionFailedAndDefaultOverwrite_throwsIOException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     GcsWriteOptions writeOptions = GcsWriteOptions.builder().setOverwriteExisting(true).build();
     StorageException e412 = new StorageException(412, "Precondition Failed");
     when(mockStorage.blobWriteSession(eq(TEST_BLOB_INFO), any(Storage.BlobWriteOption[].class)))
@@ -876,8 +879,6 @@ class GcsClientImplTest {
 
   @Test
   void create_whenRuntimeExceptionOccurs_directlyPropagates() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
     RuntimeException runtimeException = new NullPointerException("mock null pointer exception");
     when(mockStorage.blobWriteSession(eq(TEST_BLOB_INFO), any(Storage.BlobWriteOption[].class)))
         .thenThrow(runtimeException);
@@ -1011,10 +1012,8 @@ class GcsClientImplTest {
   @Test
   void getBucketInfo_storageReturnsNull_returnsNotFoundItemInfo() throws IOException {
     GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_NON_EXISTENT_BUCKET).build();
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.get(eq(TEST_NON_EXISTENT_BUCKET), any(Storage.BucketGetOption[].class)))
         .thenReturn(null);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     GcsItemInfo itemInfo = clientWithMock.getBucketInfo(bucketId);
 
@@ -1025,10 +1024,8 @@ class GcsClientImplTest {
   void getBucketInfo_bucketExists_returnsBucketInfo() throws IOException {
     GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
     Bucket mockBucket = createMockBucket(TEST_BUCKET);
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.get(eq(TEST_BUCKET), any(Storage.BucketGetOption[].class)))
         .thenReturn(mockBucket);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     GcsItemInfo itemInfo = clientWithMock.getBucketInfo(bucketId);
 
@@ -1046,10 +1043,8 @@ class GcsClientImplTest {
   @Test
   void getBucketInfo_storageThrows404_returnsNotFoundItemInfo() throws IOException {
     GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.get(eq(TEST_BUCKET), any(Storage.BucketGetOption[].class)))
         .thenThrow(new StorageException(404, "Not Found"));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     GcsItemInfo itemInfo = clientWithMock.getBucketInfo(bucketId);
 
@@ -1059,10 +1054,8 @@ class GcsClientImplTest {
   @Test
   void getBucketInfo_storageThrows500_throwsIOException() {
     GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.get(eq(TEST_BUCKET), any(Storage.BucketGetOption[].class)))
         .thenThrow(new StorageException(500, "Internal Error"));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     IOException e = assertThrows(IOException.class, () -> clientWithMock.getBucketInfo(bucketId));
 
@@ -1088,10 +1081,8 @@ class GcsClientImplTest {
   void getFolderInfo_bucketItemId_returnsBucketInfo() throws IOException {
     GcsItemId bucketId = GcsItemId.builder().setBucketName(TEST_BUCKET).build();
     Bucket mockBucket = createMockBucket(TEST_BUCKET);
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.get(eq(TEST_BUCKET), any(Storage.BucketGetOption[].class)))
         .thenReturn(mockBucket);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     GcsItemInfo itemInfo = clientWithMock.getFolderInfo(bucketId);
 
@@ -1118,11 +1109,9 @@ class GcsClientImplTest {
             .setObjectName(TEST_FOLDER_NAME + "/")
             .build();
     Folder mockFolder = createMockFolder(TEST_BUCKET, TEST_FOLDER_NAME);
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
     when(mockControlClient.getFolder(any(GetFolderRequest.class))).thenReturn(mockFolder);
-    GcsClientImpl clientWithMockControl = createClientWithMockControl(mockControlClient);
 
-    GcsItemInfo itemInfo = clientWithMockControl.getFolderInfo(folderItemId);
+    GcsItemInfo itemInfo = clientWithMock.getFolderInfo(folderItemId);
 
     assertThat(itemInfo.getItemId()).isEqualTo(folderItemId);
     assertThat(itemInfo.getItemType()).isEqualTo(GcsItemInfo.ItemType.NATIVE_FOLDER);
@@ -1141,82 +1130,357 @@ class GcsClientImplTest {
             .setBucketName(TEST_BUCKET)
             .setObjectName(TEST_FOLDER_NAME + "/")
             .build();
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
     when(mockControlClient.getFolder(any(GetFolderRequest.class)))
         .thenReturn(Folder.getDefaultInstance());
-    GcsClientImpl clientWithMockControl = createClientWithMockControl(mockControlClient);
 
-    GcsItemInfo itemInfo = clientWithMockControl.getFolderInfo(folderItemId);
+    GcsItemInfo itemInfo = clientWithMock.getFolderInfo(folderItemId);
 
     assertThat(itemInfo.getCreationTime()).isEqualTo(0L);
     assertThat(itemInfo.getModificationTime()).isEqualTo(0L);
   }
 
   @Test
-  void close_withStorageControlClient_closesBoth() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
-    GcsClientImpl localClient = createClientWithMockStorage(mockStorage);
-    localClient.storageControlClient = mockControlClient;
+  void createBucket_success() throws IOException {
+    clientWithMock.createBucket(TEST_BUCKET_NAME);
+    verify(mockStorage).create(BucketInfo.of(TEST_BUCKET_NAME));
+  }
 
-    localClient.close();
+  @Test
+  void createBucket_alreadyExists_throwsFileAlreadyExistsException() {
+    when(mockStorage.create(any(BucketInfo.class)))
+        .thenThrow(new StorageException(409, "Bucket already exists"));
+    assertThrows(
+        FileAlreadyExistsException.class, () -> clientWithMock.createBucket(TEST_BUCKET_NAME));
+  }
+
+  @Test
+  void createBucket_storageException_throwsIOException() {
+    when(mockStorage.create(any(BucketInfo.class)))
+        .thenThrow(new StorageException(500, "Internal Server Error"));
+    assertThrows(IOException.class, () -> clientWithMock.createBucket(TEST_BUCKET_NAME));
+  }
+
+  @Test
+  void createBucket_nullOrEmptyBucketName_throwsIllegalArgumentException() {
+    assertThrows(NullPointerException.class, () -> clientWithMock.createBucket(null));
+    assertThrows(IllegalArgumentException.class, () -> clientWithMock.createBucket(""));
+  }
+
+  @Test
+  void createEmptyObject_success() throws IOException {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+
+    clientWithMock.createEmptyObject(itemId);
+
+    verify(mockStorage)
+        .create(
+            eq(
+                BlobInfo.newBuilder(BlobId.of(TEST_BUCKET_NAME, "dir/"))
+                    .setContentType("application/octet-stream")
+                    .build()),
+            eq(Storage.BlobTargetOption.disableGzipContent()),
+            eq(Storage.BlobTargetOption.doesNotExist()));
+  }
+
+  @Test
+  void createEmptyObject_alreadyExistsOrPreconditionFailed_throwsFileAlreadyExistsException() {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(new StorageException(409, "Object already exists"))
+        .thenThrow(new StorageException(412, "Precondition Failed"));
+
+    assertThrows(FileAlreadyExistsException.class, () -> clientWithMock.createEmptyObject(itemId));
+    assertThrows(FileAlreadyExistsException.class, () -> clientWithMock.createEmptyObject(itemId));
+  }
+
+  @Test
+  void createEmptyObject_storageException_throwsIOException() {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(new StorageException(500, "Internal Server Error"));
+
+    assertThrows(IOException.class, () -> clientWithMock.createEmptyObject(itemId));
+  }
+
+  @Test
+  void createEmptyObject_withOptionsAndGeneration_setsBlobInfoAndTargetOptions()
+      throws IOException {
+    GcsItemId itemIdWithGen =
+        GcsItemId.builder()
+            .setBucketName(TEST_BUCKET_NAME)
+            .setObjectName(TEST_DIR)
+            .setContentGeneration(TEST_CONTENT_GENERATION)
+            .build();
+    GcsWriteOptions options =
+        GcsWriteOptions.builder()
+            .setDisableGzipContent(true)
+            .setOverwriteExisting(true)
+            .setContentType(TEST_DIRECTORY_CONTENT_TYPE)
+            .setContentEncoding(TEST_CONTENT_ENCODING)
+            .setMetadata(ImmutableMap.of("key", "val".getBytes(StandardCharsets.UTF_8)))
+            .setEncryptionKey(TEST_ENCRYPTION_KEY)
+            .build();
+    GcsItemId itemIdObj =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName(TEST_OBJECT_ID).build();
+
+    clientWithMock.createEmptyObject(itemIdWithGen, options);
+    clientWithMock.createEmptyObject(itemIdObj, options);
+
+    verify(mockStorage)
+        .create(
+            eq(
+                BlobInfo.newBuilder(BlobId.of(TEST_BUCKET_NAME, TEST_DIR))
+                    .setContentType(TEST_DIRECTORY_CONTENT_TYPE)
+                    .setContentEncoding(TEST_CONTENT_ENCODING)
+                    .setMetadata(ImmutableMap.of("key", "dmFs"))
+                    .build()),
+            eq(Storage.BlobTargetOption.disableGzipContent()),
+            eq(Storage.BlobTargetOption.generationMatch(TEST_CONTENT_GENERATION)),
+            eq(Storage.BlobTargetOption.encryptionKey(TEST_ENCRYPTION_KEY)));
+    verify(mockStorage, times(2))
+        .create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class));
+  }
+
+  @Test
+  void createEmptyObject_ignoreExceptionWhenMarkerAlreadyExists_success() throws IOException {
+    when(mockBlob.getBucket()).thenReturn(TEST_BUCKET_NAME);
+    when(mockBlob.getName()).thenReturn("dir/");
+    when(mockBlob.getSize()).thenReturn(0L);
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(new StorageException(429, "Too Many Requests"));
+    when(mockStorage.get(
+            eq(BlobId.of(TEST_BUCKET_NAME, TEST_DIR)), any(Storage.BlobGetOption.class)))
+        .thenReturn(mockBlob);
+
+    clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID);
+
+    verify(mockStorage).create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class));
+  }
+
+  @Test
+  void createEmptyObject_metadataMismatch_withEnsureMatchFalse_succeeds() throws IOException {
+    when(mockBlob.getBucket()).thenReturn(TEST_BUCKET_NAME);
+    when(mockBlob.getName()).thenReturn("dir/");
+    when(mockBlob.getSize()).thenReturn(0L);
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(new StorageException(429, "Too Many Requests"));
+    when(mockStorage.get(
+            eq(BlobId.of(TEST_BUCKET_NAME, TEST_DIR)), any(Storage.BlobGetOption.class)))
+        .thenReturn(mockBlob);
+    GcsWriteOptions options =
+        GcsWriteOptions.builder()
+            .setMetadata(ImmutableMap.of("key", new byte[] {1, 2, 3}))
+            .setEnsureEmptyObjectsMetadataMatch(false)
+            .build();
+
+    clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID, options);
+
+    verify(mockStorage).create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class));
+  }
+
+  @Test
+  void createEmptyObject_rapidStorageClass_usesAppendableUpload() throws IOException {
+    BlobAppendableUpload mockUpload = mock(BlobAppendableUpload.class);
+    AppendableUploadWriteableByteChannel mockChannel =
+        mock(AppendableUploadWriteableByteChannel.class);
+    when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
+    doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET_NAME), any(BucketGetOption.class));
+    when(mockStorage.blobAppendableUpload(
+            any(BlobInfo.class),
+            any(BlobAppendableUploadConfig.class),
+            any(Storage.BlobWriteOption[].class)))
+        .thenReturn(mockUpload);
+    when(mockUpload.open()).thenReturn(mockChannel);
+
+    clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID);
+
+    verify(mockChannel).write(any(java.nio.ByteBuffer.class));
+    verify(mockChannel).finalizeAndClose();
+  }
+
+  @Test
+  void createEmptyObject_transientReadErrorDuringVerification_retriesAndSucceeds()
+      throws IOException {
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(new StorageException(429, "Too Many Requests"));
+    when(mockBlob.getBucket()).thenReturn(TEST_BUCKET);
+    when(mockBlob.getName()).thenReturn("dir/");
+    when(mockBlob.getSize()).thenReturn(0L);
+    when(mockStorage.get(
+            eq(BlobId.of(TEST_BUCKET_NAME, TEST_DIR)), any(Storage.BlobGetOption[].class)))
+        .thenThrow(new StorageException(503, "Service Unavailable"))
+        .thenReturn(mockBlob);
+
+    clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID);
+
+    verify(mockStorage, times(2))
+        .get(eq(BlobId.of(TEST_BUCKET_NAME, TEST_DIR)), any(Storage.BlobGetOption[].class));
+  }
+
+  @Test
+  void
+      createEmptyObject_nonRetryableReadErrorDuringVerification_throwsVerificationErrorWithContext() {
+    StorageException originalException = new StorageException(429, "Rate limit exceeded");
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(originalException);
+    when(mockStorage.get(
+            eq(BlobId.of(TEST_BUCKET_NAME, TEST_DIR)), any(Storage.BlobGetOption[].class)))
+        .thenThrow(new StorageException(403, "Permission Denied"));
+
+    IOException e =
+        assertThrows(IOException.class, () -> clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID));
+
+    assertThat(e).hasMessageThat().contains("Failed to verify existence of 0-byte object");
+    assertThat(e).hasCauseThat().isEqualTo(originalException);
+    assertThat(e.getCause().getSuppressed()).isNotEmpty();
+  }
+
+  @Test
+  void
+      createEmptyObject_interruptedDuringPolling_checksPredicateFinalTimeAndRestoresInterruptStatus() {
+    when(mockStorage.create(any(BlobInfo.class), any(Storage.BlobTargetOption[].class)))
+        .thenThrow(new StorageException(429, "Too Many Requests"));
+    when(mockStorage.get(any(BlobId.class), any(Storage.BlobGetOption[].class))).thenReturn(null);
+    Thread.currentThread().interrupt();
+
+    IOException e =
+        assertThrows(IOException.class, () -> clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID));
+
+    boolean wasInterrupted = Thread.interrupted();
+    assertThat(wasInterrupted).isTrue();
+    assertThat(e).hasMessageThat().contains("Failed to create empty object");
+  }
+
+  @Test
+  void createEmptyObject_rapidStorageClass_throwsExceptionOnUploadError() throws IOException {
+    when(mockBucket.getStorageClass()).thenReturn(StorageClass.valueOf(RAPID_STORAGE_CLASS));
+    doReturn(mockBucket).when(mockStorage).get(eq(TEST_BUCKET_NAME), any(BucketGetOption.class));
+    BlobAppendableUpload mockUpload = mock(BlobAppendableUpload.class);
+    when(mockStorage.blobAppendableUpload(
+            any(BlobInfo.class),
+            any(BlobAppendableUploadConfig.class),
+            any(Storage.BlobWriteOption[].class)))
+        .thenReturn(mockUpload);
+    StorageException storageEx = new StorageException(500, "Internal Error");
+    IOException ioEx = new IOException("Socket closed");
+    when(mockUpload.open()).thenThrow(new IOException(storageEx)).thenThrow(ioEx);
+
+    IOException e1 =
+        assertThrows(IOException.class, () -> clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID));
+    IOException e2 =
+        assertThrows(IOException.class, () -> clientWithMock.createEmptyObject(TEST_DIR_ITEM_ID));
+
+    assertThat(e1.getCause()).isEqualTo(storageEx);
+    assertThat(e2).isEqualTo(ioEx);
+  }
+
+  @Test
+  void createFolder_success() throws IOException {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+    CreateFolderRequest expectedRequest =
+        CreateFolderRequest.newBuilder()
+            .setParent("projects/_/buckets/" + TEST_BUCKET_NAME)
+            .setFolderId("dir")
+            .setRecursive(true)
+            .build();
+
+    clientWithMock.createFolder(itemId, true);
+
+    verify(mockControlClient).createFolder(expectedRequest);
+  }
+
+  @Test
+  void createFolder_emptyFolderName_throwsIllegalArgumentException() {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("/").build();
+
+    assertThrows(IllegalArgumentException.class, () -> clientWithMock.createFolder(itemId, true));
+  }
+
+  @Test
+  void createFolder_alreadyExists_throwsFileAlreadyExistsException() {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+    AlreadyExistsException alreadyExistsException = mock(AlreadyExistsException.class);
+    when(mockControlClient.createFolder(any(CreateFolderRequest.class)))
+        .thenThrow(alreadyExistsException);
+
+    assertThrows(FileAlreadyExistsException.class, () -> clientWithMock.createFolder(itemId, true));
+  }
+
+  @Test
+  void createFolder_runtimeException_throwsIOException() {
+    GcsItemId itemId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_NAME).setObjectName("dir/").build();
+    when(mockControlClient.createFolder(any(CreateFolderRequest.class)))
+        .thenThrow(new RuntimeException("RPC failure"));
+
+    assertThrows(IOException.class, () -> clientWithMock.createFolder(itemId, true));
+  }
+
+  @Test
+  void close_withAllClientsInitialized_closesAllAndNullsReferences() throws Exception {
+    Storage mockGrpcStorage = mock(Storage.class);
+    clientWithMock.storageControlClient = mockControlClient;
+    clientWithMock.grpcStorage = mockGrpcStorage;
+
+    clientWithMock.close();
 
     verify(mockStorage).close();
     verify(mockControlClient).close();
-    assertThat(localClient.storageControlClient).isNull();
+    verify(mockGrpcStorage).close();
+    assertThat(clientWithMock.storageControlClient).isNull();
+    assertThat(clientWithMock.grpcStorage).isNull();
   }
 
   @Test
   void close_whenUnderlyingClientsThrowException_suppressesException() throws Exception {
-    Storage mockStorage = mock(Storage.class);
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
+    Storage mockGrpcStorage = mock(Storage.class);
     doThrow(new RuntimeException("storage close error")).when(mockStorage).close();
+    doThrow(new RuntimeException("grpc storage close error")).when(mockGrpcStorage).close();
     doThrow(new RuntimeException("control client close error")).when(mockControlClient).close();
-    GcsClientImpl localClient = createClientWithMockStorage(mockStorage);
-    localClient.storageControlClient = mockControlClient;
+    clientWithMock.storageControlClient = mockControlClient;
+    clientWithMock.grpcStorage = mockGrpcStorage;
 
-    localClient.close();
+    clientWithMock.close();
 
     verify(mockStorage).close();
+    verify(mockGrpcStorage).close();
     verify(mockControlClient).close();
-    assertThat(localClient.storageControlClient).isNull();
+    assertThat(clientWithMock.storageControlClient).isNull();
+    assertThat(clientWithMock.grpcStorage).isNull();
   }
 
   @Test
   void createStorageControlClient_withCredentials_createsClient() throws Exception {
-    GcsClientImpl localClient = createClientWithMockStorage(mock(Storage.class));
-
     try (StorageControlClient controlClient =
-        localClient.createStorageControlClient(Optional.of(NoCredentials.getInstance()))) {
+        gcsClient.createStorageControlClient(Optional.of(NoCredentials.getInstance()))) {
       assertThat(controlClient).isNotNull();
     }
   }
 
   @Test
   void createStorageControlClient_withoutCredentials_createsClient() throws Exception {
-    GcsClientImpl localClient = createClientWithMockStorage(mock(Storage.class));
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
-
     try (MockedStatic<StorageControlClient> mocked = mockStatic(StorageControlClient.class)) {
       mocked
           .when(() -> StorageControlClient.create(any(StorageControlSettings.class)))
           .thenReturn(mockControlClient);
 
-      assertThat(localClient.createStorageControlClient(Optional.empty()))
+      assertThat(gcsClient.createStorageControlClient(Optional.empty()))
           .isSameInstanceAs(mockControlClient);
     }
   }
 
   @Test
   void lazyGetStorageControlClient_initializesWhenNullAndReusesInstance() throws Exception {
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
-    GcsClientImpl mockClient = createClientWithMockControl(mockControlClient);
-
-    StorageControlClient createdInstance = mockClient.lazyGetStorageControlClient();
-    StorageControlClient cachedInstance = mockClient.lazyGetStorageControlClient();
-
-    assertThat(createdInstance).isSameInstanceAs(mockControlClient);
-    assertThat(cachedInstance).isSameInstanceAs(mockControlClient);
+    assertLazyInitializationReusesInstance(
+        clientWithMock::lazyGetStorageControlClient,
+        () -> clientWithMock.storageControlClient,
+        mockControlClient);
   }
 
   @Test
@@ -1232,26 +1496,92 @@ class GcsClientImplTest {
             return mockClientInstance;
           }
         };
+
+    assertConcurrentInitializationInstantiatesExactlyOnce(
+        client::lazyGetStorageControlClient, factoryInvocations, mockClientInstance);
+  }
+
+  @Test
+  void lazyGetGrpcStorage_initializesWhenNullAndReusesInstance() throws Exception {
+    assertLazyInitializationReusesInstance(
+        clientWithMock::lazyGetGrpcStorage, () -> clientWithMock.grpcStorage, mockStorage);
+  }
+
+  @Test
+  void lazyGetGrpcStorage_bidiReadEnabled_returnsStorageDirectly() {
+    GcsClientOptions options =
+        GcsClientOptions.builder()
+            .setProjectId(TEST_PROJECT)
+            .setGcsReadOptions(GcsReadOptions.builder().setBidiReadEnabled(true).build())
+            .build();
+    GcsClientImpl client =
+        new GcsClientImpl(options, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return mockStorage;
+          }
+        };
+
+    Storage actualStorage = client.lazyGetGrpcStorage();
+
+    assertThat(actualStorage).isSameInstanceAs(mockStorage);
+    assertThat(client.grpcStorage).isNull();
+  }
+
+  @Test
+  void lazyGetGrpcStorage_concurrentCalls_instantiatesExactlyOnce() throws Exception {
+    Storage mockStorageInstance = mock(Storage.class);
+    AtomicInteger factoryInvocations = new AtomicInteger();
+    GcsClientImpl client =
+        new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createGrpcStorage(Optional<Credentials> credentials) {
+            factoryInvocations.incrementAndGet();
+            return mockStorageInstance;
+          }
+        };
+
+    assertConcurrentInitializationInstantiatesExactlyOnce(
+        client::lazyGetGrpcStorage, factoryInvocations, mockStorageInstance);
+  }
+
+  @FunctionalInterface
+  private interface ThrowingSupplier<T> {
+    T get() throws Exception;
+  }
+
+  private <T> void assertLazyInitializationReusesInstance(
+      ThrowingSupplier<T> lazyClientGetter, Supplier<T> clientAccessor, T expectedInstance)
+      throws Exception {
+    T createdInstance = lazyClientGetter.get();
+    T cachedInstance = lazyClientGetter.get();
+
+    assertThat(createdInstance).isSameInstanceAs(expectedInstance);
+    assertThat(cachedInstance).isSameInstanceAs(expectedInstance);
+    assertThat(clientAccessor.get()).isSameInstanceAs(expectedInstance);
+  }
+
+  private <T> void assertConcurrentInitializationInstantiatesExactlyOnce(
+      ThrowingSupplier<T> lazyClientGetter, AtomicInteger factoryInvocations, T expectedInstance)
+      throws Exception {
     ExecutorService executor = Executors.newFixedThreadPool(2);
     CountDownLatch ready = new CountDownLatch(2);
     CountDownLatch start = new CountDownLatch(1);
-    Callable<StorageControlClient> task =
+    Callable<T> task =
         () -> {
           ready.countDown();
           start.await();
-          return client.lazyGetStorageControlClient();
+          return lazyClientGetter.get();
         };
 
     try {
-      Future<StorageControlClient> f1 = executor.submit(task);
-      Future<StorageControlClient> f2 = executor.submit(task);
+      Future<T> f1 = executor.submit(task);
+      Future<T> f2 = executor.submit(task);
       ready.await(5, TimeUnit.SECONDS);
       start.countDown();
-      StorageControlClient result1 = f1.get(5, TimeUnit.SECONDS);
-      StorageControlClient result2 = f2.get(5, TimeUnit.SECONDS);
 
-      assertThat(result1).isSameInstanceAs(mockClientInstance);
-      assertThat(result2).isSameInstanceAs(mockClientInstance);
+      assertThat(f1.get(5, TimeUnit.SECONDS)).isSameInstanceAs(expectedInstance);
+      assertThat(f2.get(5, TimeUnit.SECONDS)).isSameInstanceAs(expectedInstance);
       assertThat(factoryInvocations.get()).isEqualTo(1);
     } finally {
       executor.shutdownNow();
@@ -1265,34 +1595,36 @@ class GcsClientImplTest {
             .setBucketName(TEST_BUCKET)
             .setObjectName(TEST_NON_EXISTENT_OBJECT)
             .build();
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
     NotFoundException notFoundException = mock(NotFoundException.class);
     when(mockControlClient.getFolder(any(GetFolderRequest.class))).thenThrow(notFoundException);
-    GcsClientImpl clientWithMockControl = createClientWithMockControl(mockControlClient);
 
-    GcsItemInfo itemInfo = clientWithMockControl.getFolderInfo(folderItemId);
+    GcsItemInfo itemInfo = clientWithMock.getFolderInfo(folderItemId);
 
     assertNotFound(itemInfo, folderItemId);
   }
 
   @Test
   void getFolderInfo_otherRpcException_throwsIOException() throws IOException {
-    StorageControlClient mockControlClient = mock(StorageControlClient.class);
     when(mockControlClient.getFolder(any(GetFolderRequest.class)))
         .thenThrow(new RuntimeException("RPC error"));
-    GcsClientImpl clientWithMockControl = createClientWithMockControl(mockControlClient);
 
     IOException e =
-        assertThrows(IOException.class, () -> clientWithMockControl.getFolderInfo(TEST_ITEM_ID));
+        assertThrows(IOException.class, () -> clientWithMock.getFolderInfo(TEST_ITEM_ID));
 
     assertThat(e).hasMessageThat().contains("Failed to get folder info for: " + TEST_ITEM_ID);
   }
 
-  private GcsClientImpl createClientWithMockControl(StorageControlClient mockControlClient) {
+  private GcsClientImpl createClientWithMocks(
+      Storage mockStorage, StorageControlClient mockControlClient) {
     return new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
       @Override
       protected Storage createStorage(Optional<Credentials> credentials) {
-        return GcsClientImplTest.this.storage;
+        return mockStorage;
+      }
+
+      @Override
+      protected Storage createGrpcStorage(Optional<Credentials> credentials) {
+        return mockStorage;
       }
 
       @Override
@@ -1303,12 +1635,19 @@ class GcsClientImplTest {
   }
 
   @Test
+  void createGrpcStorage_withCredentials_createsClient() throws Exception {
+    try (Storage grpcClient =
+        gcsClient.createGrpcStorage(Optional.of(NoCredentials.getInstance()))) {
+      assertThat(grpcClient).isNotNull();
+    }
+  }
+
+  @Test
   void listFirstObjectWithPrefix_hasObjects_returnsSingleItem() throws IOException {
     GcsItemId prefixId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_DIR).build();
     Blob mockBlob = createMockBlob(TEST_BUCKET, TEST_DIR + "file.txt");
-    Storage mockStorage = createMockStorageWithBlobs(TEST_BUCKET, mockBlob);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
+    setupMockStorageWithBlobs(TEST_BUCKET, mockBlob);
 
     List<GcsItemInfo> result = clientWithMock.listFirstObjectWithPrefix(prefixId);
 
@@ -1321,8 +1660,7 @@ class GcsClientImplTest {
   void listFirstObjectWithPrefix_empty_returnsEmptyList() throws IOException {
     GcsItemId prefixId =
         GcsItemId.builder().setBucketName(TEST_BUCKET).setObjectName(TEST_DIR).build();
-    Storage mockStorage = createMockStorageWithBlobs(TEST_BUCKET);
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
+    setupMockStorageWithBlobs(TEST_BUCKET);
 
     List<GcsItemInfo> result = clientWithMock.listFirstObjectWithPrefix(prefixId);
 
@@ -1339,10 +1677,8 @@ class GcsClientImplTest {
 
   @Test
   void listFirstObjectWithPrefix_storageThrows404_throwsFileNotFoundException() {
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.list(eq(TEST_BUCKET), any(Storage.BlobListOption[].class)))
         .thenThrow(new StorageException(404, "Bucket not found"));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     FileNotFoundException e =
         assertThrows(
@@ -1354,10 +1690,8 @@ class GcsClientImplTest {
 
   @Test
   void listFirstObjectWithPrefix_storageThrows500_throwsIOException() {
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.list(eq(TEST_BUCKET), any(Storage.BlobListOption[].class)))
         .thenThrow(new StorageException(500, "Internal error"));
-    GcsClientImpl clientWithMock = createClientWithMockStorage(mockStorage);
 
     IOException e =
         assertThrows(
@@ -1397,12 +1731,10 @@ class GcsClientImplTest {
   }
 
   @SuppressWarnings("unchecked")
-  private static Storage createMockStorageWithBlobs(String bucket, Blob... blobs) {
+  private void setupMockStorageWithBlobs(String bucket, Blob... blobs) {
     Page<Blob> mockPage = mock(Page.class);
     when(mockPage.getValues()).thenReturn(ImmutableList.copyOf(blobs));
-    Storage mockStorage = mock(Storage.class);
     when(mockStorage.list(eq(bucket), any(Storage.BlobListOption[].class))).thenReturn(mockPage);
-    return mockStorage;
   }
 
   private static void assertNotFound(GcsItemInfo itemInfo, GcsItemId expectedItemId) {
