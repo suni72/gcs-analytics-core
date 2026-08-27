@@ -16,7 +16,9 @@
 package com.google.cloud.gcs.analyticscore.client;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.net.URI;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +38,12 @@ final class UriUtil {
   // 4 = foo/bar/baz
   // Groups 2(bucket) and 4(objects) can be used to create an instance.
   private static final Pattern GCS_PATH_PATTERN = Pattern.compile("gs://(([^/]+)(/(.+)?)?)?");
+
+  /** Parses {@link GcsItemId} from specified URI. */
+  static GcsItemId getItemIdFromUri(URI uri) {
+    checkNotNull(uri, "uri should not be null");
+    return getItemIdFromString(uri.toString());
+  }
 
   /** Parses {@link GcsItemId} from specified string. */
   static GcsItemId getItemIdFromString(String path) {

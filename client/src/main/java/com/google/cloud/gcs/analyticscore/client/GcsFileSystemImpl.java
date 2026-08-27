@@ -45,8 +45,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class GcsFileSystemImpl implements GcsFileSystem {
+
+  private static final Logger LOG = LoggerFactory.getLogger(GcsFileSystemImpl.class);
 
   /**
    * Using a 30-second keep-alive enables efficient thread reuse during intermittent spikes in
@@ -159,7 +163,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   public VectoredSeekableByteChannel open(GcsFileInfo gcsFileInfo, GcsReadOptions readOptions)
       throws IOException {
     checkNotNull(gcsFileInfo, "fileInfo should not be null");
-    GcsItemId itemId = UriUtil.getItemIdFromString(gcsFileInfo.getUri().toString());
+    GcsItemId itemId = UriUtil.getItemIdFromUri(gcsFileInfo.getUri());
     checkArgument(itemId.isGcsObject(), "Expected GCS object to be provided. But got: " + itemId);
     return gcsClient.openReadChannel(gcsFileInfo.getItemInfo(), readOptions);
   }
@@ -176,7 +180,7 @@ public class GcsFileSystemImpl implements GcsFileSystem {
   @Override
   public GcsFileInfo getFileInfo(URI path) throws IOException {
     checkNotNull(path, "path should not be null");
-    GcsItemId itemId = UriUtil.getItemIdFromString(path.toString());
+    GcsItemId itemId = UriUtil.getItemIdFromUri(path);
     return getFileInfo(itemId);
   }
 
@@ -258,6 +262,48 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
     // Delegate the actual SDK interaction and exception handling to the internal client
     return gcsClient.createWriteChannel(itemId, writeOptions);
+  }
+
+  @Override
+  public void mkdir(URI path) throws IOException {
+    LOG.debug("Ignoring non-recursive mkdir. Creating parents anyways.");
+    mkdirs(path);
+  }
+
+  @Override
+  public void mkdir(GcsItemId itemId) throws IOException {
+    LOG.debug("Ignoring non-recursive mkdir. Creating parents anyways.");
+    mkdirs(itemId);
+  }
+
+  @Override
+  public void mkdirs(URI path) throws IOException {
+    checkNotNull(path, "path should not be null");
+    mkdirs(UriUtil.getItemIdFromUri(path));
+  }
+
+  @Override
+  public void mkdirs(GcsItemId itemId) throws IOException {
+    checkNotNull(itemId, "itemId should not be null");
+    if (itemId.isRoot()) {
+      // Root path always exists.
+      return;
+    }
+    if (itemId.isBucket()) {
+      try {
+        gcsClient.createBucket(itemId.getBucketName());
+      } catch (FileAlreadyExistsException e) {
+        LOG.debug("Bucket {} already exists.", itemId.getBucketName(), e);
+      }
+      return;
+    }
+
+    if (fileSystemOptions.isEnsureNoConflictingItems()) {
+      checkNoFilesConflictingWithDirs(itemId);
+    }
+
+    NamespaceStrategy strategy = resolveStrategy(itemId.getBucketName());
+    strategy.createDirectory(itemId);
   }
 
   @VisibleForTesting
