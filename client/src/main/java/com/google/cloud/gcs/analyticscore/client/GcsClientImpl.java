@@ -49,6 +49,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.BaseEncoding;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.protobuf.Timestamp;
 import com.google.storage.control.v2.CreateFolderRequest;
 import com.google.storage.control.v2.Folder;
@@ -64,8 +65,12 @@ import java.nio.file.FileAlreadyExistsException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -204,6 +209,52 @@ class GcsClientImpl implements GcsClient {
     }
     throw new UnsupportedOperationException(
         String.format("Expected gcs object but got %s", itemId));
+  }
+
+  @Override
+  public List<GcsItemInfo> getGcsObjectInfos(List<GcsItemId> itemIds) throws IOException {
+    checkNotNull(itemIds, "itemIds must not be null");
+    if (itemIds.isEmpty()) {
+      return Collections.emptyList();
+    }
+    if (itemIds.size() == 1) {
+      GcsItemInfo info = getGcsObjectInfo(itemIds.get(0));
+      return Collections.singletonList(info);
+    }
+
+    GcsItemInfo[] results = new GcsItemInfo[itemIds.size()];
+    Set<IOException> innerExceptions = ConcurrentHashMap.newKeySet();
+    int numThreads = Math.min(itemIds.size(), clientOptions.getBatchThreads());
+    BatchExecutor executor = new BatchExecutor(numThreads);
+
+    try {
+      for (int i = 0; i < itemIds.size(); i++) {
+        final int index = i;
+        final GcsItemId itemId = itemIds.get(i);
+        executor.queue(
+            () -> getGcsObjectInfo(itemId),
+            new FutureCallback<GcsItemInfo>() {
+              @Override
+              public void onSuccess(GcsItemInfo result) {
+                results[index] = result;
+              }
+
+              @Override
+              public void onFailure(Throwable t) {
+                innerExceptions.add(
+                    new IOException(String.format("Error getting %s object", itemId), t));
+              }
+            });
+      }
+    } finally {
+      executor.shutdown();
+    }
+
+    if (!innerExceptions.isEmpty()) {
+      throw innerExceptions.iterator().next();
+    }
+
+    return Arrays.asList(results);
   }
 
   @Override

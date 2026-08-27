@@ -23,6 +23,8 @@ import java.util.regex.Pattern;
 /** Utility class for parsing and formatting GCS URIs. */
 final class UriUtil {
 
+  static final String PATH_DELIMITER = "/";
+
   private UriUtil() {}
 
   // Pattern that parses out bucket and object names.
@@ -61,15 +63,15 @@ final class UriUtil {
   }
 
   static String removeTrailingSlash(String path) {
-    if (path != null && path.endsWith("/")) {
-      return path.substring(0, path.length() - 1);
+    if (path != null && path.endsWith(PATH_DELIMITER)) {
+      return path.substring(0, path.length() - PATH_DELIMITER.length());
     }
     return path;
   }
 
   static String toDirectoryPath(String path) {
-    if (path != null && !path.endsWith("/")) {
-      return path + "/";
+    if (path != null && !path.endsWith(PATH_DELIMITER)) {
+      return path + PATH_DELIMITER;
     }
     return path;
   }

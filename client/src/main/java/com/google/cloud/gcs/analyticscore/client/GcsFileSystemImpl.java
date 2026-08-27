@@ -15,8 +15,10 @@
  */
 package com.google.cloud.gcs.analyticscore.client;
 
+import static com.google.cloud.gcs.analyticscore.client.UriUtil.PATH_DELIMITER;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 import com.google.auth.Credentials;
 import com.google.cloud.gcs.analyticscore.common.GcsAnalyticsCoreTelemetryConstants;
@@ -36,7 +38,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -254,6 +258,63 @@ public class GcsFileSystemImpl implements GcsFileSystem {
 
     // Delegate the actual SDK interaction and exception handling to the internal client
     return gcsClient.createWriteChannel(itemId, writeOptions);
+  }
+
+  @VisibleForTesting
+  void checkNoFilesConflictingWithDirs(GcsItemId itemId) throws IOException {
+    String objectName = itemId.getObjectName().orElse("");
+    List<String> dirs = getDirs(objectName);
+    if (dirs.isEmpty()) {
+      return;
+    }
+    ImmutableList.Builder<GcsItemId> fileIds = ImmutableList.builderWithExpectedSize(dirs.size());
+    for (String dir : dirs) {
+      fileIds.add(
+          GcsItemId.builder().setBucketName(itemId.getBucketName()).setObjectName(dir).build());
+    }
+
+    List<GcsItemInfo> itemInfos = gcsClient.getGcsObjectInfos(fileIds.build());
+    for (GcsItemInfo itemInfo : itemInfos) {
+      if (itemInfo.exists()) {
+        throw new FileAlreadyExistsException(
+            String.format(
+                "Cannot create directory '%s' because of existing file '%s'",
+                itemId, itemInfo.getItemId()));
+      }
+    }
+  }
+
+  /**
+   * For objects whose name looks like a path (e.g. {@code "a/b/c"} or {@code "a/b/c/"}), returns
+   * all parent/intermediate directory paths.
+   *
+   * <p>For example:
+   *
+   * <ul>
+   *   <li>a/b/c => returns: ["a", "a/b"]
+   *   <li>a/b/c/ => returns: ["a", "a/b", "a/b/c"]
+   *   <li>a => returns: []
+   * </ul>
+   *
+   * @param objectName Name of an object.
+   * @return List of subdirectory like paths.
+   */
+  @VisibleForTesting
+  static ImmutableList<String> getDirs(String objectName) {
+    if (isNullOrEmpty(objectName)) {
+      return ImmutableList.of();
+    }
+    String normalized = UriUtil.toDirectoryPath(objectName);
+    ImmutableList.Builder<String> dirs = ImmutableList.builder();
+    int index = 0;
+    while ((index = normalized.indexOf(PATH_DELIMITER, index)) >= 0) {
+      String dir = normalized.substring(0, index);
+      if (!dir.isEmpty()) {
+        dirs.add(dir);
+      }
+      index += PATH_DELIMITER.length();
+    }
+    return dirs.build();
   }
 
   @VisibleForTesting

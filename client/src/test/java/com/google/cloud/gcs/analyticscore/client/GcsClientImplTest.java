@@ -97,6 +97,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
@@ -230,6 +231,93 @@ class GcsClientImplTest {
     GcsItemInfo itemInfo = gcsClient.getGcsItemInfo(nonExistentItemId);
 
     assertNotFound(itemInfo, nonExistentItemId);
+  }
+
+  @Test
+  void getGcsObjectInfos_emptyList_returnsEmptyList() throws IOException {
+    List<GcsItemInfo> result = gcsClient.getGcsObjectInfos(ImmutableList.of());
+
+    assertThat(result).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 2, 15})
+  void getGcsObjectInfos_multipleItems_withVariousBatchThreads_returnsListPreservingOrder(
+      int batchThreads) throws IOException {
+    GcsClientOptions clientOptions =
+        GcsClientOptions.builder().setBatchThreads(batchThreads).build();
+    Storage localMockStorage = storage;
+    GcsClient client =
+        new GcsClientImpl(clientOptions, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return localMockStorage;
+          }
+        };
+    GcsItemId existingId1 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName(TEST_OBJECT_ID).build();
+    GcsItemId existingId2 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object2").build();
+    GcsItemId missingId =
+        GcsItemId.builder()
+            .setBucketName(TEST_BUCKET_ID)
+            .setObjectName(TEST_NON_EXISTENT_OBJECT)
+            .build();
+    StorageTestUtils.createBlobInStorage(
+        storage,
+        BlobId.of(existingId1.getBucketName(), existingId1.getObjectName().get(), 0L),
+        "data");
+    StorageTestUtils.createBlobInStorage(
+        storage,
+        BlobId.of(existingId2.getBucketName(), existingId2.getObjectName().get(), 0L),
+        "data2");
+
+    List<GcsItemInfo> result =
+        client.getGcsObjectInfos(ImmutableList.of(existingId1, existingId2, missingId));
+
+    assertThat(result).hasSize(3);
+    assertThat(result.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
+    assertThat(result.get(1).getItemId().getObjectName()).hasValue("object2");
+    assertNotFound(result.get(2), missingId);
+  }
+
+  @Test
+  void getGcsObjectInfos_underlyingClientFails_throwsIOException() {
+    when(mockStorage.get(any(BlobId.class), any(Storage.BlobGetOption[].class)))
+        .thenThrow(new StorageException(500, "Internal Server Error"));
+    GcsItemId id1 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object1").build();
+    GcsItemId id2 =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName("object2").build();
+
+    IOException exception =
+        assertThrows(
+            IOException.class, () -> clientWithMock.getGcsObjectInfos(ImmutableList.of(id1, id2)));
+
+    assertThat(exception).hasMessageThat().contains("Error getting");
+  }
+
+  @Test
+  void getGcsObjectInfos_singleItem_returnsExpectedInfo() throws IOException {
+    GcsItemId existingId =
+        GcsItemId.builder().setBucketName(TEST_BUCKET_ID).setObjectName(TEST_OBJECT_ID).build();
+    GcsItemId missingId =
+        GcsItemId.builder()
+            .setBucketName(TEST_BUCKET_ID)
+            .setObjectName(TEST_NON_EXISTENT_OBJECT)
+            .build();
+    StorageTestUtils.createBlobInStorage(
+        storage,
+        BlobId.of(existingId.getBucketName(), existingId.getObjectName().get(), 0L),
+        "data");
+
+    List<GcsItemInfo> existingResult = gcsClient.getGcsObjectInfos(ImmutableList.of(existingId));
+    List<GcsItemInfo> missingResult = gcsClient.getGcsObjectInfos(ImmutableList.of(missingId));
+
+    assertThat(existingResult).hasSize(1);
+    assertThat(existingResult.get(0).getItemId().getObjectName()).hasValue(TEST_OBJECT_ID);
+    assertThat(missingResult).hasSize(1);
+    assertNotFound(missingResult.get(0), missingId);
   }
 
   @Test
