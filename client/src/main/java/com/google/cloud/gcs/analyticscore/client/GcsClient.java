@@ -22,7 +22,6 @@ import java.util.List;
 
 @VisibleForTesting
 public interface GcsClient {
-
   /** Opens a new read channel. */
   VectoredSeekableByteChannel openReadChannel(GcsItemInfo itemInfo, GcsReadOptions readOptions)
       throws IOException;

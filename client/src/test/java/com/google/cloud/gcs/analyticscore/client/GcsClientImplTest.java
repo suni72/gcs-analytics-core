@@ -546,17 +546,24 @@ class GcsClientImplTest {
   }
 
   private GcsClientImpl createClientWithMockStorage(Storage mockStorage) {
-    return new GcsClientImpl(TEST_GCS_CLIENT_OPTIONS, executorServiceSupplier, telemetry) {
-      @Override
-      protected Storage createStorage(Optional<Credentials> credentials) {
-        return mockStorage;
-      }
+    return createClientWithMockStorage(mockStorage, TEST_GCS_CLIENT_OPTIONS);
+  }
 
-      @Override
-      protected Storage createGrpcStorage(Optional<Credentials> credentials) {
-        return mockStorage;
-      }
-    };
+  private GcsClientImpl createClientWithMockStorage(Storage mockStorage, GcsClientOptions options) {
+    GcsClientImpl client =
+        new GcsClientImpl(options, executorServiceSupplier, telemetry) {
+          @Override
+          protected Storage createStorage(Optional<Credentials> credentials) {
+            return mockStorage;
+          }
+
+          @Override
+          protected Storage createGrpcStorage(Optional<Credentials> credentials) {
+            return mockStorage;
+          }
+        };
+    client.storage = mockStorage;
+    return client;
   }
 
   private Bucket mockBucketWithHns(Boolean hnsEnabled) {

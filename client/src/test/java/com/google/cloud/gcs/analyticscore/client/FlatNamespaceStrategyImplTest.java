@@ -30,11 +30,12 @@ class FlatNamespaceStrategyImplTest {
 
   private static final String BUCKET = "test-bucket";
 
+  private final GcsClient mockGcsClient = mock(GcsClient.class);
+  private final FlatNamespaceStrategyImpl strategy = new FlatNamespaceStrategyImpl(mockGcsClient);
+
   @Test
   void createDirectory_validItemIdWithoutTrailingSlash_createsEmptyObjectWithTrailingSlash()
       throws IOException {
-    GcsClient mockGcsClient = mock(GcsClient.class);
-    FlatNamespaceStrategyImpl strategy = new FlatNamespaceStrategyImpl(mockGcsClient);
     GcsItemId itemId =
         GcsItemId.builder().setBucketName(BUCKET).setObjectName("dir/subdir").build();
     GcsItemId expectedItemId =
@@ -48,8 +49,6 @@ class FlatNamespaceStrategyImplTest {
   @Test
   void createDirectory_validItemIdWithTrailingSlash_createsEmptyObjectWithTrailingSlash()
       throws IOException {
-    GcsClient mockGcsClient = mock(GcsClient.class);
-    FlatNamespaceStrategyImpl strategy = new FlatNamespaceStrategyImpl(mockGcsClient);
     GcsItemId itemId =
         GcsItemId.builder().setBucketName(BUCKET).setObjectName("dir/subdir/").build();
     GcsItemId expectedItemId =
@@ -62,8 +61,6 @@ class FlatNamespaceStrategyImplTest {
 
   @Test
   void createDirectory_alreadyExists_suppressesException() throws IOException {
-    GcsClient mockGcsClient = mock(GcsClient.class);
-    FlatNamespaceStrategyImpl strategy = new FlatNamespaceStrategyImpl(mockGcsClient);
     GcsItemId itemId = GcsItemId.builder().setBucketName(BUCKET).setObjectName("dir").build();
     GcsItemId expectedItemId =
         GcsItemId.builder().setBucketName(BUCKET).setObjectName("dir/").build();
@@ -76,8 +73,6 @@ class FlatNamespaceStrategyImplTest {
 
   @Test
   void createDirectory_ioException_propagatesException() throws IOException {
-    GcsClient mockGcsClient = mock(GcsClient.class);
-    FlatNamespaceStrategyImpl strategy = new FlatNamespaceStrategyImpl(mockGcsClient);
     GcsItemId itemId = GcsItemId.builder().setBucketName(BUCKET).setObjectName("dir").build();
     GcsItemId expectedItemId =
         GcsItemId.builder().setBucketName(BUCKET).setObjectName("dir/").build();
@@ -90,8 +85,6 @@ class FlatNamespaceStrategyImplTest {
 
   @Test
   void createDirectory_nullOrNonObjectItemId_throwsException() {
-    GcsClient mockGcsClient = mock(GcsClient.class);
-    FlatNamespaceStrategyImpl strategy = new FlatNamespaceStrategyImpl(mockGcsClient);
     GcsItemId bucketItemId = GcsItemId.builder().setBucketName(BUCKET).build();
 
     assertThrows(NullPointerException.class, () -> strategy.createDirectory(null));
